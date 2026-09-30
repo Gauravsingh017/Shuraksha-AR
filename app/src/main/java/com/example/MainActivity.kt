@@ -13,10 +13,12 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -38,6 +40,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -75,6 +79,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+// ------------------- USER ROLES -------------------
+enum class UserRole {
+    WORKER,
+    ADMIN
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,9 +107,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val currentLanguage: StateFlow<AppLanguage> = voiceManager.currentLanguage
     val activeSpeechTag: StateFlow<String?> = voiceManager.activeTag
 
+    var currentRole by mutableStateOf(UserRole.WORKER)
     var loggedInUser by mutableStateOf<String?>("Rajesh Kumar")
     var workerId by mutableStateOf<String?>("JH-MNR-00482")
+    var adminId by mutableStateOf<String?>("DGMS-ADM-102")
+    var userSection by mutableStateOf<String?>("Underground Drift 3 - Face 4")
     var site by mutableStateOf<String?>("Rajmahal Coal Mine")
+
+    fun loginAsWorker(name: String, id: String, section: String) {
+        currentRole = UserRole.WORKER
+        loggedInUser = name.ifBlank { "Rajesh Kumar" }
+        workerId = id.ifBlank { "JH-MNR-00482" }
+        userSection = section.ifBlank { "Underground Drift 3 - Face 4" }
+    }
+
+    fun loginAsAdmin(name: String, id: String) {
+        currentRole = UserRole.ADMIN
+        loggedInUser = name.ifBlank { "Er. A. K. Sharma (Mine Safety Director)" }
+        adminId = id.ifBlank { "DGMS-ADM-102" }
+    }
+
+    fun switchRole(role: UserRole) {
+        currentRole = role
+        if (role == UserRole.ADMIN) {
+            if (loggedInUser == "Rajesh Kumar" || loggedInUser.isNullOrBlank()) {
+                loggedInUser = "Er. A. K. Sharma (Mine Safety Director)"
+            }
+        } else {
+            if (loggedInUser?.startsWith("Er.") == true) {
+                loggedInUser = "Rajesh Kumar"
+            }
+        }
+    }
 
     var activeSimulationType by mutableStateOf(ARSimulationType.GAS_VENTILATION)
     var activeModuleId by mutableStateOf("1")
@@ -198,8 +237,15 @@ fun SurakshaApp() {
     Scaffold(
         topBar = { TopBar(navController, currentRoute, viewModel) },
         bottomBar = {
-            if (currentRoute in listOf("landing", "dashboard", "admin")) {
-                BottomBar(navController, currentRoute)
+            // Worker sees ONLY Home & Training. Admin sees Home, Training & Admin Panel.
+            val allowedBottomRoutes = if (viewModel.currentRole == UserRole.ADMIN) {
+                listOf("landing", "dashboard", "admin")
+            } else {
+                listOf("landing", "dashboard")
+            }
+            if (currentRoute in allowedBottomRoutes) {
+                val currentLang by viewModel.currentLanguage.collectAsStateWithLifecycle()
+                BottomBar(navController, currentRoute, viewModel.currentRole, currentLang)
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -215,7 +261,7 @@ fun SurakshaApp() {
             composable("sim") { SimulationScreen(navController, viewModel) }
             composable("quiz") { QuizScreen(navController, viewModel) }
             composable("cert") { CertificateScreen(navController, viewModel) }
-            composable("admin") { AdminScreen() }
+            composable("admin") { AdminScreen(navController, viewModel) }
         }
     }
 }
@@ -228,28 +274,115 @@ fun TopBar(navController: NavController, currentRoute: String, viewModel: MainVi
 
     TopAppBar(
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { navController.navigate("landing") }
+            ) {
+                // User Profile Avatar with Online Beacon
                 Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(4.dp)),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.size(38.dp),
+                    contentAlignment = Alignment.BottomEnd
                 ) {
-                    Text("S", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Image(
+                        painter = painterResource(id = R.drawable.img_worker_avatar),
+                        contentDescription = "Profile",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(Color(0xFF00B251), CircleShape)
+                            .border(1.5.dp, Color.White, CircleShape)
+                    )
                 }
+
                 Spacer(Modifier.width(8.dp))
-                Text("SURAKSHA", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                Text("AR", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+
+                // App Shield Logo
+                Image(
+                    painter = painterResource(id = R.drawable.ic_suraksha_shield_logo),
+                    contentDescription = "App Logo",
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                Column {
+                    Text(
+                        text = if (currentLang == AppLanguage.HINDI) "सुरक्षा" else "SURAKSHA",
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (currentLang == AppLanguage.HINDI) "सुरक्षा AR" else "SURAKSHA AR",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         },
         actions = {
-            // Speaking Active Indicator & Stop Button
+            // 5 Days Safe Badge
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                modifier = Modifier.padding(end = 6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocalFireDepartment,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(5.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "5 दिन" else "5 DAYS",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.width(3.dp))
+                            Box(modifier = Modifier.size(4.dp).background(Color(0xFF00B251), CircleShape))
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "सुरक्षित" else "SAFE",
+                                color = Color(0xFF006E2F),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Speaking Indicator & Stop Button
             if (isSpeaking) {
                 Surface(
                     onClick = { viewModel.stopSpeech() },
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF1B3824),
-                    border = BorderStroke(1.dp, Color(0xFF00FF88)),
+                    color = Color(0xFFE8F5E9),
+                    border = BorderStroke(1.dp, Color(0xFF00B251)),
                     modifier = Modifier.padding(end = 6.dp)
                 ) {
                     Row(
@@ -257,105 +390,225 @@ fun TopBar(navController: NavController, currentRoute: String, viewModel: MainVi
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.PlayArrow,
+                            Icons.Default.VolumeUp,
                             contentDescription = "Speaking",
-                            tint = Color(0xFF00FF88),
-                            modifier = Modifier.size(13.dp)
+                            tint = Color(0xFF006E2F),
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Audio ON", color = Color(0xFF00FF88), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.width(4.dp))
                         Icon(
                             Icons.Default.Close,
                             contentDescription = "Stop",
-                            tint = Color.White,
+                            tint = Color(0xFF006E2F),
                             modifier = Modifier.size(12.dp)
                         )
                     }
                 }
             }
 
-            // Bilingual Voice Output Language Selector Pill
+            // Language Toggle Pill
             Surface(
                 onClick = { viewModel.toggleLanguage() },
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                modifier = Modifier.padding(end = 8.dp)
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+                modifier = Modifier.padding(end = 6.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (currentLang == AppLanguage.HINDI) "🇮🇳 हिन्दी" else "🇬🇧 English",
+                        text = if (currentLang == AppLanguage.HINDI) "हिन्दी" else "EN",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Default.VolumeUp,
+                        contentDescription = "Voice Guide",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
                 }
             }
 
-            if (viewModel.loggedInUser != null && currentRoute != "landing") {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.padding(end = 12.dp)
+            // Role Switch Pill
+            Surface(
+                onClick = { navController.navigate("login") },
+                shape = RoundedCornerShape(16.dp),
+                color = if (viewModel.currentRole == UserRole.ADMIN) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.dp, if (viewModel.currentRole == UserRole.ADMIN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.tertiary, CircleShape))
-                        Spacer(Modifier.width(6.dp))
-                        Text("${viewModel.loggedInUser}", fontSize = 12.sp)
-                    }
+                    Icon(
+                        imageVector = if (viewModel.currentRole == UserRole.ADMIN) Icons.Default.AdminPanelSettings else Icons.Default.Engineering,
+                        contentDescription = "Role",
+                        tint = if (viewModel.currentRole == UserRole.ADMIN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = if (currentLang == AppLanguage.HINDI) {
+                            if (viewModel.currentRole == UserRole.ADMIN) "एडमिन" else "श्रमिक"
+                        } else {
+                            if (viewModel.currentRole == UserRole.ADMIN) "ADMIN" else "WORKER"
+                        },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (viewModel.currentRole == UserRole.ADMIN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }
 
 @Composable
-fun BottomBar(navController: NavController, currentRoute: String) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-        NavigationBarItem(
-            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-            label = { Text("Home") },
-            selected = currentRoute == "landing",
-            onClick = { navController.navigate("landing") { launchSingleTop = true } },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary,
-                indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        )
-        NavigationBarItem(
-            icon = { Icon(Icons.Default.Build, contentDescription = "Training") },
-            label = { Text("Training") },
-            selected = currentRoute == "dashboard",
-            onClick = { navController.navigate("dashboard") { launchSingleTop = true } },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary,
-                indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        )
-        NavigationBarItem(
-            icon = { Icon(Icons.Default.Settings, contentDescription = "Admin") },
-            label = { Text("Admin") },
-            selected = currentRoute == "admin",
-            onClick = { navController.navigate("admin") { launchSingleTop = true } },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary,
-                indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        )
+fun BottomBar(navController: NavController, currentRoute: String, userRole: UserRole, currentLang: AppLanguage) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 8.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Drill Center
+            val isDrillSelected = currentRoute == "landing"
+            Surface(
+                onClick = { navController.navigate("landing") { launchSingleTop = true } },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(54.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = if (isDrillSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.dp, if (isDrillSelected) Color(0xFF783200) else Color.Transparent)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Construction,
+                        contentDescription = null,
+                        tint = if (isDrillSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "अभ्यास केंद्र" else "Drill Center",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = if (isDrillSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "दैनिक ड्रिल" else "Daily Drills",
+                            fontSize = 9.sp,
+                            color = if (isDrillSelected) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Training Modules
+            val isModulesSelected = currentRoute == "dashboard"
+            Surface(
+                onClick = { navController.navigate("dashboard") { launchSingleTop = true } },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(54.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = if (isModulesSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.dp, if (isModulesSelected) Color(0xFF783200) else Color.Transparent)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MenuBook,
+                        contentDescription = null,
+                        tint = if (isModulesSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "प्रशिक्षण" else "Training",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = if (isModulesSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "सभी मॉड्यूल" else "All Modules",
+                            fontSize = 9.sp,
+                            color = if (isModulesSelected) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // If Admin: Admin Panel Tab
+            if (userRole == UserRole.ADMIN) {
+                val isAdminSelected = currentRoute == "admin"
+                Surface(
+                    onClick = { navController.navigate("admin") { launchSingleTop = true } },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(54.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = if (isAdminSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.dp, if (isAdminSelected) Color(0xFF783200) else Color.Transparent)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AdminPanelSettings,
+                            contentDescription = null,
+                            tint = if (isAdminSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Column {
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "एडमिन" else "Admin",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = if (isAdminSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "पैनल" else "Panel",
+                                fontSize = 9.sp,
+                                color = if (isAdminSelected) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -368,131 +621,632 @@ fun LandingScreen(navController: NavController, viewModel: MainViewModel) {
     val activeTag by viewModel.activeSpeechTag.collectAsStateWithLifecycle()
     val isIntroSpeaking = isSpeaking && activeTag == "intro_brief"
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                .padding(24.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Shift Greeting & Status Strip
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White,
+            border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+            shadowElevation = 3.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "SIH26041 • GOVT. OF JHARKHAND",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        letterSpacing = 1.sp
-                    )
-                    Surface(
-                        onClick = { viewModel.toggleLanguage() },
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(Color(0xFFCCE5FF), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Engineering,
+                            contentDescription = null,
+                            tint = Color(0xFF006398),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "शिफ्ट 1 • खदान 4B" else "Shift 1 • Pit 4B",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF6BFF8F)
+                            ) {
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "सक्रिय" else "ACTIVE",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF002109),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                         Text(
-                            text = if (currentLang == AppLanguage.HINDI) "🇮🇳 हिन्दी" else "🇬🇧 English",
-                            color = MaterialTheme.colorScheme.primary,
+                            text = if (currentLang == AppLanguage.HINDI) "सुरक्षा नियम सीएमआर 2017" else "DGMS CMR 2017 Safety",
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    if (currentLang == AppLanguage.HINDI) "खतरे से पहले अभ्यास करें, ताकि खतरा आप पर हावी न हो।" else "Train for the hazard before it trains you.",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 38.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    if (currentLang == AppLanguage.HINDI) "खदान कर्मियों के लिए एआर व्यावसायिक प्रशिक्षण सिम्युलेटर। मीथेन गैस रिसाव, 3डी आग पर नियंत्रण और वास्तविक समय में सुरक्षित निकासी पथ का शून्य जोखिम में अभ्यास करें। हिन्दी और अंग्रेजी में पूर्ण वॉयस सहायता।"
-                    else "AR vocational training simulator for miners. Practice simulated methane gas leakage, 3D fire response, and real-time path evacuation in zero-risk environments with bilingual voice output in Hindi & English.",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 20.sp
-                )
-                Spacer(Modifier.height(20.dp))
 
-                // Voice Narration Button for Miners
-                OutlinedButton(
+                // Radio Guidance Beacon
+                Surface(
                     onClick = {
-                        if (isIntroSpeaking) {
-                            viewModel.stopSpeech()
+                        val radioText = if (currentLang == AppLanguage.HINDI) {
+                            "सुरक्षा रेडियो सक्रिय है। आज का मुख्य अभ्यास भूमिगत मीथेन गैस जांच है। नीचे दिए गए नारंगी बटन को दबाकर अभ्यास शुरू करें।"
                         } else {
-                            val introText = if (currentLang == AppLanguage.HINDI) {
-                                "सुरक्षा एआर में आपका स्वागत है। यह खदान कर्मियों के लिए डीजीएमएस अनुपालन आधारित संवर्धित वास्तविकता व्यावसायिक प्रशिक्षण सिम्युलेटर है। आप मीथेन गैस रिसाव, आग निकासी, कन्वेयर लोटो और 3.3 केवी विद्युत अलगाव का सजीव 3डी मॉडल के साथ अभ्यास कर सकते हैं।"
-                            } else {
-                                "Welcome to Suraksha AR. An interactive 3D vocational training platform for miners. Experience simulated gas ventilation, fire evacuation paths, machinery lockout, and electrical isolation with real-time voice guidance."
-                            }
-                            viewModel.speak(introText, currentLang, "intro_brief")
+                            "Safety Radio Active. Today's mandatory drill is Underground Methane Check. Press the orange button below to start."
                         }
+                        viewModel.speak(radioText, currentLang, "radio_beacon")
                     },
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = MaterialTheme.colorScheme.surface)
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
-                    Icon(
-                        imageVector = if (isIntroSpeaking) Icons.Default.Close else Icons.Default.VolumeUp,
-                        contentDescription = null,
-                        tint = if (isIntroSpeaking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (isIntroSpeaking) "Stop Audio Intro"
-                        else if (currentLang == AppLanguage.HINDI) "🔊 आवाज में परिचय सुनें (हिन्दी)"
-                        else "🔊 Listen App Briefing (English)",
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = { navController.navigate("login") },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
-                ) {
-                    Text(if (currentLang == AppLanguage.HINDI) "प्रशिक्षण मॉड्यूल शुरू करें →" else "Start Training Modules →", fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { navController.navigate("admin") },
-                    modifier = Modifier.fillMaxWidth().height(48.dp)
-                ) {
-                    Text("View Admin Analytics", color = MaterialTheme.colorScheme.onSurface)
-                }
-
-                Spacer(Modifier.height(24.dp))
-                Divider(color = MaterialTheme.colorScheme.outline)
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    StatItem("5", "Room DB Modules")
-                    StatItem("AR", "Camera Passthrough")
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    StatItem("3D", "Fumes & Fire")
-                    StatItem("🔊 HI/EN", "Bilingual Voice")
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.GraphicEq,
+                            contentDescription = null,
+                            tint = Color(0xFF006398),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "रेडियो चालू" else "Radio ON",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF006398)
+                        )
+                    }
                 }
             }
         }
 
-        Column(Modifier.padding(24.dp)) {
-            Text("Featured AR Drills", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("Powered by local Room persistence, 3D WebGL and bilingual voice", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(16.dp))
+        // Hero Mandatory Drill Card
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                // Top Header Lockup
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "अनिवार्य अभ्यास" else "MANDATORY EXERCISE",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "आज का सुरक्षा अभ्यास" else "Today's Safety Drill",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
 
-            ModuleStaticCard("Underground Gas & Ventilation", "HIGH", "42 min", "Billowy methane gas fumes leak drill with Hindi/EN voice")
-            Spacer(Modifier.height(12.dp))
-            ModuleStaticCard("Fire & Emergency Evacuation", "HIGH", "28 min", "Active fire & real-time floor path arrows with voice guidance")
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFFDBCA)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = Color(0xFF783200),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "3 मिनट" else "3 Mins",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF783200)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Drill Spotlight Row with Thumbnail & Prominent 56dp Audio Button
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Image(
+                                painter = painterResource(id = R.drawable.img_drill_methane),
+                                contentDescription = "Drill Graphic",
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "भूमिगत मीथेन गैस जांच" else "Underground Methane Check",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(6.dp).background(Color(0xFF00B251), CircleShape))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = if (currentLang == AppLanguage.HINDI) "एआर सेंसर जांच" else "AR Sensor Calibration",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF006E2F)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Prominent 56dp Audio Button with "Listen" text
+                        Surface(
+                            onClick = {
+                                if (isIntroSpeaking) {
+                                    viewModel.stopSpeech()
+                                } else {
+                                    val brief = if (currentLang == AppLanguage.HINDI) {
+                                        "भूमिगत मीथेन गैस जांच अभ्यास। सुरक्षा एआर कैमरे से छत के पास गैस सेंसर कैलिब्रेट करें। 1.25 प्रतिशत से अधिक मीथेन होने पर तुरंत वेंटिलेशन चालू करें और निकासी अलार्म दबाएं।"
+                                    } else {
+                                        "Underground Methane Check drill. Using the camera AR sensor, inspect drift ceiling for combustible methane. If concentration exceeds 1.25 percent, isolate power and open ventilation doors."
+                                    }
+                                    viewModel.speak(brief, currentLang, "intro_brief")
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFCCE5FF),
+                            border = BorderStroke(1.dp, Color(0xFF93CCFF)),
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isIntroSpeaking) Icons.Default.Close else Icons.Default.VolumeUp,
+                                    contentDescription = "Listen",
+                                    tint = Color(0xFF006398),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "सुनें" else "Listen",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF006398)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Massive Safety Orange 3D Call to Action Button
+                Surface(
+                    onClick = {
+                        viewModel.launchSimulation("1")
+                        navController.navigate("sim")
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    border = BorderStroke(1.dp, Color(0xFF783200)),
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "सुरक्षा अभ्यास शुरू करें" else "START SAFETY DRILL",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "कैमरा 3D सिमुलेशन चालू होगा" else "Live Camera 3D Simulation",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFFFFDBCA)
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(Color.White.copy(alpha = 0.25f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section Header: Required Modules
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = if (currentLang == AppLanguage.HINDI) "प्रशिक्षण मॉड्यूल" else "Required Modules",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFF6BFF8F)
+            ) {
+                Text(
+                    text = if (currentLang == AppLanguage.HINDI) "1/4 पूर्ण" else "1 of 4 Completed",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF002109),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
+
+        // 2x2 Interactive Module Cards Grid
+        val moduleItems = listOf(
+            Triple("1", if (currentLang == AppLanguage.HINDI) "गैस व वेंटिलेशन" else "Gas & Vent", R.drawable.img_drill_ventilation),
+            Triple("2", if (currentLang == AppLanguage.HINDI) "आग से बचाव मार्ग" else "Fire Escape", R.drawable.img_drill_fire),
+            Triple("3", if (currentLang == AppLanguage.HINDI) "कन्वेयर लॉक-आउट" else "Conveyor Lock", R.drawable.img_drill_conveyor),
+            Triple("4", if (currentLang == AppLanguage.HINDI) "उच्च वोल्टेज सुरक्षा" else "High Voltage", R.drawable.img_drill_voltage)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Card 1: Gas & Vent (100% complete)
+            StitchModuleCard(
+                modifier = Modifier.weight(1f),
+                title = moduleItems[0].second,
+                progressPercent = 100,
+                statusTag = if (currentLang == AppLanguage.HINDI) "पूर्ण 100%" else "DONE 100%",
+                imageRes = moduleItems[0].third,
+                onCardClick = {
+                    viewModel.launchSimulation("1")
+                    navController.navigate("sim")
+                },
+                onAudioClick = {
+                    val sop = TrainingContentRepository.vocationalGuides["1"]
+                    val speech = if (currentLang == AppLanguage.HINDI) sop?.summaryHi ?: "" else sop?.summary ?: ""
+                    viewModel.speak(speech, currentLang, "mod_audio_1")
+                }
+            )
+
+            // Card 2: Fire Escape (50% in progress)
+            StitchModuleCard(
+                modifier = Modifier.weight(1f),
+                title = moduleItems[1].second,
+                progressPercent = 50,
+                statusTag = if (currentLang == AppLanguage.HINDI) "जारी 50%" else "RESUME 50%",
+                imageRes = moduleItems[1].third,
+                onCardClick = {
+                    viewModel.launchSimulation("2")
+                    navController.navigate("sim")
+                },
+                onAudioClick = {
+                    val sop = TrainingContentRepository.vocationalGuides["2"]
+                    val speech = if (currentLang == AppLanguage.HINDI) sop?.summaryHi ?: "" else sop?.summary ?: ""
+                    viewModel.speak(speech, currentLang, "mod_audio_2")
+                }
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Card 3: Conveyor Lock
+            StitchModuleCard(
+                modifier = Modifier.weight(1f),
+                title = moduleItems[2].second,
+                progressPercent = 0,
+                statusTag = if (currentLang == AppLanguage.HINDI) "लोटो ताला" else "LOCKOUT LOTO",
+                imageRes = moduleItems[2].third,
+                onCardClick = {
+                    viewModel.launchSimulation("3")
+                    navController.navigate("sim")
+                },
+                onAudioClick = {
+                    val sop = TrainingContentRepository.vocationalGuides["3"]
+                    val speech = if (currentLang == AppLanguage.HINDI) sop?.summaryHi ?: "" else sop?.summary ?: ""
+                    viewModel.speak(speech, currentLang, "mod_audio_3")
+                }
+            )
+
+            // Card 4: High Voltage
+            StitchModuleCard(
+                modifier = Modifier.weight(1f),
+                title = moduleItems[3].second,
+                progressPercent = 0,
+                statusTag = if (currentLang == AppLanguage.HINDI) "11 KV खतरा" else "11 KV DANGER",
+                imageRes = moduleItems[3].third,
+                onCardClick = {
+                    viewModel.launchSimulation("4")
+                    navController.navigate("sim")
+                },
+                onAudioClick = {
+                    val sop = TrainingContentRepository.vocationalGuides["4"]
+                    val speech = if (currentLang == AppLanguage.HINDI) sop?.summaryHi ?: "" else sop?.summary ?: ""
+                    viewModel.speak(speech, currentLang, "mod_audio_4")
+                }
+            )
+        }
+
+        // Quick Voice Assistance Strip
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        onClick = {
+                            val help = if (currentLang == AppLanguage.HINDI) {
+                                "सुरक्षा वॉयस बॉट तैयार है। किसी भी आपातकालीन स्थिति में तुरंत निकटतम वेंटिलेशन एयरवे में जाएं और ऑक्सीजन सेल्फ रेस्क्यूर चालू करें।"
+                            } else {
+                                "Safety voice assistant ready. In case of emergency, immediately proceed towards the intake ventilation airway and activate self-contained breathing equipment."
+                            }
+                            viewModel.speak(help, currentLang, "quick_voice_help")
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF006398),
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Voice Help",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(12.dp))
+
+                    Column {
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "मदद चाहिए? माइक दबाएं" else "Need Help? Press Mic & Speak",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "बोलकर त्वरित सुरक्षा मार्गदर्शन प्राप्त करें" else "Spoken safety advice without reading",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Text(
+                        text = "AI BOT",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+    }
+}
+
+@Composable
+fun StitchModuleCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    progressPercent: Int,
+    statusTag: String,
+    imageRes: Int,
+    onCardClick: () -> Unit,
+    onAudioClick: () -> Unit
+) {
+    Card(
+        onClick = onCardClick,
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Top Row: Progress indicator & Mini audio chip
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Progress Chip
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = when {
+                        progressPercent == 100 -> Color(0xFFE8F5E9)
+                        progressPercent > 0 -> Color(0xFFFFDBCA)
+                        else -> MaterialTheme.colorScheme.surfaceVariant
+                    }
+                ) {
+                    Text(
+                        text = "$progressPercent%",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = when {
+                            progressPercent == 100 -> Color(0xFF006E2F)
+                            progressPercent > 0 -> Color(0xFF783200)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+
+                // Mini Audio Chip
+                Surface(
+                    onClick = onAudioClick,
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFCCE5FF),
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.VolumeUp,
+                            contentDescription = "Listen",
+                            tint = Color(0xFF006398),
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // 3D Graphic Image Preview
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp)
+                    .clip(RoundedCornerShape(14.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = imageRes),
+                    contentDescription = title,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = when {
+                        progressPercent == 100 -> Color(0xFF006E2F)
+                        progressPercent > 0 -> MaterialTheme.colorScheme.primary
+                        else -> Color(0xFF4A5568)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                ) {
+                    Text(
+                        text = statusTag,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
         }
     }
 }
@@ -532,51 +1286,304 @@ fun ModuleStaticCard(title: String, risk: String, duration: String, subtitle: St
 
 @Composable
 fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
-    var name by remember { mutableStateOf(viewModel.loggedInUser ?: "Rajesh Kumar") }
+    val currentLang by viewModel.currentLanguage.collectAsStateWithLifecycle()
+    var selectedRole by remember { mutableStateOf(viewModel.currentRole) }
+
+    // Worker fields
+    var workerName by remember { mutableStateOf(viewModel.loggedInUser ?: "Rajesh Kumar") }
     var workerId by remember { mutableStateOf(viewModel.workerId ?: "JH-MNR-00482") }
+    var section by remember { mutableStateOf(viewModel.userSection ?: "Underground Drift 3 - Face 4") }
+
+    // Admin fields
+    var adminName by remember { mutableStateOf(if (viewModel.currentRole == UserRole.ADMIN) (viewModel.loggedInUser ?: "Er. A. K. Sharma") else "Er. A. K. Sharma (Mine Safety Director)") }
+    var adminId by remember { mutableStateOf(viewModel.adminId ?: "DGMS-ADM-102") }
+    var pin by remember { mutableStateOf("admin123") }
+    var pinVisible by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Column {
-                Box(Modifier.fillMaxWidth().height(6.dp).background(MaterialTheme.colorScheme.primary))
-                Column(Modifier.padding(24.dp)) {
-                    Text("Worker Safety Profile", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Text("Room database tracks your completed drills locally", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                    Spacer(Modifier.height(24.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .background(if (selectedRole == UserRole.ADMIN) MaterialTheme.colorScheme.primary else Color(0xFF00FF88))
+                )
 
-                    OutlinedTextField(
-                        value = workerId,
-                        onValueChange = { workerId = it },
-                        label = { Text("Worker ID") },
-                        modifier = Modifier.fillMaxWidth()
+                Column(Modifier.padding(24.dp)) {
+                    Text(
+                        text = if (currentLang == AppLanguage.HINDI) "सुरक्षा पोर्टल लॉगिन" else "Suraksha Portal Login",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Worker Full Name") },
-                        modifier = Modifier.fillMaxWidth()
+                    Text(
+                        text = if (currentLang == AppLanguage.HINDI) "वर्कस्पेस अनुमतियों के लिए अपनी भूमिका चुनें" else "Select your role to configure workspace permissions",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp
                     )
-                    Spacer(Modifier.height(32.dp))
-                    Button(
-                        onClick = {
-                            viewModel.loggedInUser = name
-                            viewModel.workerId = workerId
-                            navController.navigate("dashboard") {
-                                popUpTo("landing")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
+                    Spacer(Modifier.height(20.dp))
+
+                    // Role Selector Tabs (Mining Worker vs Safety Admin)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                            .padding(4.dp)
                     ) {
-                        Text("Sign In & Open Progress Dashboard", fontWeight = FontWeight.Bold)
+                        Surface(
+                            onClick = {
+                                selectedRole = UserRole.WORKER
+                                errorMessage = null
+                            },
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (selectedRole == UserRole.WORKER) MaterialTheme.colorScheme.surface else Color.Transparent,
+                            border = if (selectedRole == UserRole.WORKER) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Engineering,
+                                    contentDescription = null,
+                                    tint = if (selectedRole == UserRole.WORKER) Color(0xFF00FF88) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "खनन कर्मचारी" else "Mining Worker",
+                                    fontWeight = if (selectedRole == UserRole.WORKER) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 13.sp,
+                                    color = if (selectedRole == UserRole.WORKER) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(4.dp))
+
+                        Surface(
+                            onClick = {
+                                selectedRole = UserRole.ADMIN
+                                errorMessage = null
+                            },
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (selectedRole == UserRole.ADMIN) MaterialTheme.colorScheme.surface else Color.Transparent,
+                            border = if (selectedRole == UserRole.ADMIN) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.AdminPanelSettings,
+                                    contentDescription = null,
+                                    tint = if (selectedRole == UserRole.ADMIN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "सुरक्षा अधिकारी" else "Safety Admin",
+                                    fontWeight = if (selectedRole == UserRole.ADMIN) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 13.sp,
+                                    color = if (selectedRole == UserRole.ADMIN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    if (selectedRole == UserRole.WORKER) {
+                        // WORKER FORM - ACCESS RESTRICTED TO HOME & TRAINING MODULES ONLY
+                        Surface(
+                            color = Color(0xFF0D2518),
+                            border = BorderStroke(1.dp, Color(0xFF1E4D32)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF00FF88), modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "कर्मचारी मोड: रूम डेटाबेस प्रगति और एआर सिमुलेशन के साथ होम और सुरक्षा प्रशिक्षण मॉड्यूल खोलें।" else "Worker Mode: Unlocks Home & Safety Training Modules with Room DB progress and AR simulation drills.",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFC7F3DB),
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = workerId,
+                            onValueChange = { workerId = it },
+                            label = { Text(if (currentLang == AppLanguage.HINDI) "कर्मचारी आईडी / कोड" else "Worker ID / Staff Code") },
+                            leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = workerName,
+                            onValueChange = { workerName = it },
+                            label = { Text(if (currentLang == AppLanguage.HINDI) "कर्मचारी का पूरा नाम" else "Worker Full Name") },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = section,
+                            onValueChange = { section = it },
+                            label = { Text(if (currentLang == AppLanguage.HINDI) "भूमिगत सेक्शन / खदान का स्थान" else "Underground Section / Mine Face") },
+                            leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(24.dp))
+
+                        Button(
+                            onClick = {
+                                viewModel.loginAsWorker(workerName, workerId, section)
+                                navController.navigate("dashboard") {
+                                    popUpTo("landing")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
+                        ) {
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "कर्मचारी के रूप में लॉगिन करें →" else "Sign In as Worker → Open Training Modules",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                    } else {
+                        // ADMIN FORM - ACCESS TO ADMIN PANEL & WORKFORCE ANALYTICS
+                        Surface(
+                            color = Color(0xFF2C2210),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "एडमिन मोड: साइट सुरक्षा पैनल, पंजीकृत कर्मी रजिस्टर, लाइव एआर ऑडिट लॉग और अभ्यास खोलें।" else "Admin Mode: Unlocks Site Safety Panel, Registered Worker Compliance Roster, Live AR Audit Logs & Training Drills.",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFFFE0A3),
+                                    lineHeight = 16.sp
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = adminId,
+                            onValueChange = { adminId = it },
+                            label = { Text(if (currentLang == AppLanguage.HINDI) "अधिकारी कोड" else "Admin Inspector Code") },
+                            leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = adminName,
+                            onValueChange = { adminName = it },
+                            label = { Text(if (currentLang == AppLanguage.HINDI) "अधिकारी का नाम और पद" else "Officer Name & Designation") },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = pin,
+                            onValueChange = {
+                                pin = it
+                                errorMessage = null
+                            },
+                            label = { Text(if (currentLang == AppLanguage.HINDI) "सुरक्षा पासवर्ड / पिन" else "Security Passcode / PIN") },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                            trailingIcon = {
+                                IconButton(onClick = { pinVisible = !pinVisible }) {
+                                    Icon(
+                                        imageVector = if (pinVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = "Toggle visibility"
+                                    )
+                                }
+                            },
+                            visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "डेमो पासवर्ड: admin123" else "Demo Passcode: admin123",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        if (errorMessage != null) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(errorMessage!!, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                        }
+
+                        Spacer(Modifier.height(20.dp))
+
+                        Button(
+                            onClick = {
+                                if (pin.trim().isEmpty()) {
+                                    errorMessage = if (currentLang == AppLanguage.HINDI) "कृपया सुरक्षा पिन दर्ज करें (जैसे admin123)" else "Please enter the security PIN (e.g. admin123)"
+                                } else {
+                                    viewModel.loginAsAdmin(adminName, adminId)
+                                    navController.navigate("admin") {
+                                        popUpTo("landing")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
+                        ) {
+                            Icon(Icons.Default.AdminPanelSettings, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "व्यवस्थापक के रूप में लॉगिन करें →" else "Sign In as Administrator → Open Admin Panel",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(
+                        onClick = { navController.popBackStack() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (currentLang == AppLanguage.HINDI) "रद्द करें और होम पर लौटें" else "Cancel & Return to Home",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -629,7 +1636,12 @@ fun DashboardScreen(navController: NavController, viewModel: MainViewModel) {
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text("Room Database Active Tracking • DGMS Verified", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (currentLang == AppLanguage.HINDI) "रूम डेटाबेस सक्रिय ट्रैकिंग • डीजीएमएस सत्यापित" else "Room Database Active Tracking • DGMS Verified",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -637,7 +1649,11 @@ fun DashboardScreen(navController: NavController, viewModel: MainViewModel) {
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
-                        text = if (overallProgress >= 0.8f) "DGMS GRADE A" else "IN DRILL CYCLE",
+                        text = if (overallProgress >= 0.8f) {
+                            if (currentLang == AppLanguage.HINDI) "डीजीएमएस ग्रेड A" else "DGMS GRADE A"
+                        } else {
+                            if (currentLang == AppLanguage.HINDI) "प्रशिक्षण जारी" else "IN DRILL CYCLE"
+                        },
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -649,9 +1665,10 @@ fun DashboardScreen(navController: NavController, viewModel: MainViewModel) {
 
             // Progress Summary Dashboard Card
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(16.dp)) {
@@ -680,10 +1697,10 @@ fun DashboardScreen(navController: NavController, viewModel: MainViewModel) {
                     Spacer(Modifier.height(16.dp))
 
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        StatItem(totalCount.toString(), "Assigned")
-                        StatItem(completedCount.toString(), "Completed")
-                        StatItem(inProgressCount.toString(), "In Progress")
-                        StatItem("$averageScore%", "Avg Score")
+                        StatItem(totalCount.toString(), if (currentLang == AppLanguage.HINDI) "कुल मॉड्यूल" else "Assigned")
+                        StatItem(completedCount.toString(), if (currentLang == AppLanguage.HINDI) "पूर्ण" else "Completed")
+                        StatItem(inProgressCount.toString(), if (currentLang == AppLanguage.HINDI) "प्रगति पर" else "In Progress")
+                        StatItem("$averageScore%", if (currentLang == AppLanguage.HINDI) "औसत स्कोर" else "Avg Score")
                     }
                 }
             }
@@ -705,7 +1722,7 @@ fun DashboardScreen(navController: NavController, viewModel: MainViewModel) {
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
-                        text = if (currentLang == AppLanguage.HINDI) "वॉयस: 🇮🇳 हिन्दी" else "Voice: 🇬🇧 English",
+                        text = if (currentLang == AppLanguage.HINDI) "वॉयस: हिन्दी" else "Voice: English",
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -766,175 +1783,198 @@ fun ModuleProgressCard(
     onReset: () -> Unit,
     onViewSop: () -> Unit
 ) {
+    val sop = TrainingContentRepository.vocationalGuides[module.id]
+    val (vectorIcon, accentColor, shortBadge) = when (module.id) {
+        "1" -> Triple(Icons.Default.Air, Color(0xFFFFB300), if (currentLang == AppLanguage.HINDI) "गैस रिसाव" else "Gas Leak")
+        "2" -> Triple(Icons.Default.LocalFireDepartment, Color(0xFFFF5252), if (currentLang == AppLanguage.HINDI) "आग व निकासी" else "Fire Escape")
+        "3" -> Triple(Icons.Default.Lock, Color(0xFFFF9800), if (currentLang == AppLanguage.HINDI) "मशीन लोटो" else "LOTO Lock")
+        "4" -> Triple(Icons.Default.Bolt, Color(0xFF00E5FF), if (currentLang == AppLanguage.HINDI) "बिजली सुरक्षा" else "High Voltage")
+        "5" -> Triple(Icons.Default.HealthAndSafety, Color(0xFF00E676), if (currentLang == AppLanguage.HINDI) "सुरक्षा किट" else "PPE Kit")
+        else -> Triple(Icons.Default.HealthAndSafety, MaterialTheme.colorScheme.primary, if (currentLang == AppLanguage.HINDI) "सुरक्षा" else "Safety")
+    }
+
+    val moduleTitle = if (currentLang == AppLanguage.HINDI && sop != null) sop.titleHi else module.title
+    val moduleDesc = if (currentLang == AppLanguage.HINDI && sop != null) sop.summaryHi else module.description
+
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.5.dp, if (isSpeakingThisModule) Color(0xFF006E2F) else Color(0xFFCBD5E1)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp)) {
+            // Top Row: Big Visual Vector Badge + Title + Big Audio Pill Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val stripColor = when (module.status) {
-                    "COMPLETED" -> MaterialTheme.colorScheme.tertiary
-                    "IN_PROGRESS" -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.error
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(accentColor.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                            .border(1.dp, accentColor, RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = vectorIcon,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Surface(
+                            color = accentColor.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = shortBadge,
+                                color = accentColor,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = moduleTitle,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color(0xFF131B2E)
+                        )
+                    }
                 }
-                Box(Modifier.size(36.dp, 4.dp).background(stripColor, RoundedCornerShape(2.dp)))
 
-                // Status chip
-                val (chipText, chipBg, chipColor) = when (module.status) {
-                    "COMPLETED" -> Triple("COMPLETED ✓", Color(0xFF143020), MaterialTheme.colorScheme.tertiary)
-                    "IN_PROGRESS" -> Triple("IN PROGRESS", Color(0xFF4A3400), MaterialTheme.colorScheme.primary)
-                    else -> Triple("NOT STARTED", Color(0xFF262626), Color.LightGray)
-                }
-                Surface(color = chipBg, shape = RoundedCornerShape(12.dp)) {
-                    Text(
-                        chipText,
-                        color = chipColor,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                // DEDICATED AUDIO VOICE PILL
+                Surface(
+                    onClick = onPlayVoiceGuide,
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isSpeakingThisModule) Color(0xFF00E676) else Color(0xFFEFF6FF),
+                    border = BorderStroke(1.5.dp, if (isSpeakingThisModule) Color(0xFF00E676) else Color(0xFF93CCFF)),
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isSpeakingThisModule) Icons.Default.Close else Icons.Default.VolumeUp,
+                            contentDescription = "Speak",
+                            tint = if (isSpeakingThisModule) Color.Black else Color(0xFF006398),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = if (isSpeakingThisModule) {
+                                if (currentLang == AppLanguage.HINDI) "रोकें" else "Stop"
+                            } else {
+                                if (currentLang == AppLanguage.HINDI) "सुनें" else "Listen"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isSpeakingThisModule) Color.Black else Color(0xFF006398)
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.height(10.dp))
-            val sop = TrainingContentRepository.vocationalGuides[module.id]
-            val moduleTitle = if (currentLang == AppLanguage.HINDI && sop != null) sop.titleHi else module.title
-            val moduleDesc = if (currentLang == AppLanguage.HINDI && sop != null) sop.summaryHi else module.description
 
-            Text(moduleTitle, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(moduleDesc, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, lineHeight = 18.sp)
+            // Concise summary line
+            Text(
+                text = moduleDesc,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                maxLines = 2
+            )
 
             Spacer(Modifier.height(12.dp))
 
-            // AR 3D Feature Tags for all 5 modules
-            when (module.id) {
-                "1" -> {
-                    Surface(color = Color(0xFF2D2510), shape = RoundedCornerShape(6.dp)) {
-                        Text("✦ AR 3D Gas Fumes & Leak Valve", color = Color(0xFFFFD166), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
-                }
-                "2" -> {
-                    Surface(color = Color(0xFF1B2E1F), shape = RoundedCornerShape(6.dp)) {
-                        Text("✦ AR 3D Fire & Real-Time Evacuation Path Arrows", color = Color(0xFF06D6A0), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
-                }
-                "3" -> {
-                    Surface(color = Color(0xFF332211), shape = RoundedCornerShape(6.dp)) {
-                        Text("✦ AR 3D Conveyor Belt & Interactive LOTO Station", color = Color(0xFFF39C12), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
-                }
-                "4" -> {
-                    Surface(color = Color(0xFF16253D), shape = RoundedCornerShape(6.dp)) {
-                        Text("✦ AR 3D 3.3kV Substation & Arc Flash Plasma", color = Color(0xFF5DADE2), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
-                }
-                "5" -> {
-                    Surface(color = Color(0xFF1D2F23), shape = RoundedCornerShape(6.dp)) {
-                        Text("✦ AR 3D Self-Rescuer, Cap Lamp & PPE Bench", color = Color(0xFF2ECC71), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
+            // Progress Bar & Status Pill
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LinearProgressIndicator(
                     progress = { module.progress },
                     modifier = Modifier
                         .weight(1f)
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = if (module.status == "COMPLETED") MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = if (module.status == "COMPLETED") Color(0xFF00E676) else accentColor,
                     trackColor = MaterialTheme.colorScheme.background
                 )
-                Spacer(Modifier.width(12.dp))
-                Text("${(module.progress * 100).toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(10.dp))
+                val statusText = when (module.status) {
+                    "COMPLETED" -> if (currentLang == AppLanguage.HINDI) "पूर्ण" else "Completed"
+                    "IN_PROGRESS" -> "${(module.progress * 100).toInt()}%"
+                    else -> if (currentLang == AppLanguage.HINDI) "शुरू करें" else "Start"
+                }
+                Text(
+                    text = statusText,
+                    fontSize = 11.sp,
+                    color = if (module.status == "COMPLETED") Color(0xFF006E2F) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             Spacer(Modifier.height(14.dp))
-            Divider(color = MaterialTheme.colorScheme.outline)
-            Spacer(Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(module.duration, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (module.score > 0) {
-                        Spacer(Modifier.width(8.dp))
-                        Text("Score: ${module.score}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Voice Guide Quick Button
-                    OutlinedButton(
-                        onClick = onPlayVoiceGuide,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isSpeakingThisModule) Color(0xFF1B3824) else Color.Transparent
-                        ),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp)
+            // BIG ACTION BUTTONS - Large touch targets (50dp height)
+            if (module.status == "COMPLETED") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onViewCertificate,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B251), contentColor = Color.White),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isSpeakingThisModule) Icons.Default.Close else Icons.Default.VolumeUp,
-                            contentDescription = null,
-                            tint = if (isSpeakingThisModule) Color(0xFF00FF88) else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = if (isSpeakingThisModule) "Stop" else if (currentLang == AppLanguage.HINDI) "आवाज" else "Voice",
-                            fontSize = 11.sp,
-                            color = if (isSpeakingThisModule) Color(0xFF00FF88) else MaterialTheme.colorScheme.onSurface
-                        )
+                        Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (currentLang == AppLanguage.HINDI) "सर्टिफिकेट" else "Certificate", fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedButton(
                         onClick = onViewSop,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp)
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.primary)
                     ) {
-                        Text("SOP Guide", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (currentLang == AppLanguage.HINDI) "नियमावली" else "Manual", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Big Primary 3D Drill Button
+                    Button(
+                        onClick = onStartDrill,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = accentColor, contentColor = Color.Black),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = if (module.status == "IN_PROGRESS") (if (currentLang == AppLanguage.HINDI) "3D जारी रखें" else "Resume 3D")
+                            else (if (currentLang == AppLanguage.HINDI) "3D सिमुलेशन" else "Start 3D AR"),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        )
                     }
 
-                    if (module.status == "COMPLETED") {
-                        OutlinedButton(
-                            onClick = onReset,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 5.dp)
-                        ) {
-                            Text("Retrain", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Button(
-                            onClick = onViewCertificate,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = Color.Black),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
-                        ) {
-                            Text("Certificate", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    } else if (module.status == "IN_PROGRESS") {
-                        Button(
-                            onClick = onStartDrill,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
-                        ) {
-                            Text("Resume AR", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        Button(
-                            onClick = onStartDrill,
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 5.dp)
-                        ) {
-                            Text("Launch Drill", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
+                    // SOP Rules Quick Audio Dialog Button
+                    OutlinedButton(
+                        onClick = onViewSop,
+                        modifier = Modifier.height(50.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.2.dp, Color(0xFFCBD5E1))
+                    ) {
+                        Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (currentLang == AppLanguage.HINDI) "नियमावली" else "Manual", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -947,6 +1987,7 @@ fun ModuleProgressCard(
 @Composable
 fun SimulationScreen(navController: NavController, viewModel: MainViewModel) {
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
+    val currentLang by viewModel.currentLanguage.collectAsStateWithLifecycle()
 
     if (cameraPermissionState.status.isGranted) {
         ARSimulationView(navController, viewModel)
@@ -958,15 +1999,27 @@ fun SimulationScreen(navController: NavController, viewModel: MainViewModel) {
         ) {
             Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Camera Permission Required", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(
+                text = if (currentLang == AppLanguage.HINDI) "कैमरा अनुमति आवश्यक" else "Camera Permission Required",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Suraksha AR projects 3D gas fumes, fire hazards, conveyors, electrical substations, and PPE directly over your physical camera feed.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+            Text(
+                text = if (currentLang == AppLanguage.HINDI) "सुरक्षा एआर आपके कैमरे पर 3D गैस रिसाव, आग, कन्वेयर बेल्ट और सुरक्षा उपकरणों का सिमुलेशन दिखाता है।" else "Suraksha AR projects 3D gas fumes, fire hazards, conveyors, electrical substations, and PPE directly over your physical camera feed.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp
+            )
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = { cameraPermissionState.launchPermissionRequest() },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
             ) {
-                Text("Grant Camera Permission", fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (currentLang == AppLanguage.HINDI) "कैमरा अनुमति दें" else "Grant Camera Permission",
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
@@ -979,6 +2032,8 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
     val isSpeaking by viewModel.isSpeaking.collectAsStateWithLifecycle()
     val activeTag by viewModel.activeSpeechTag.collectAsStateWithLifecycle()
     val isDrillAudioPlaying = isSpeaking && activeTag == "drill_${viewModel.activeModuleId}"
+    val isStepsAudioPlaying = isSpeaking && activeTag == "steps_${viewModel.activeModuleId}"
+    val isDgmsAudioPlaying = isSpeaking && activeTag == "dgms_${viewModel.activeModuleId}"
 
     var hazardIdentifiedLocally by remember { mutableStateOf(false) }
     var viewingSopInDrill by remember { mutableStateOf<VocationalSop?>(null) }
@@ -987,7 +2042,11 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
         VocationalSopDialog(
             sop = viewingSopInDrill!!,
             viewModel = viewModel,
-            onDismiss = { viewingSopInDrill = null }
+            onDismiss = { viewingSopInDrill = null },
+            onStartQuiz = {
+                viewingSopInDrill = null
+                navController.navigate("quiz")
+            }
         )
     }
 
@@ -1038,7 +2097,12 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
                         ) {
                             Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.error, CircleShape))
                             Spacer(Modifier.width(6.dp))
-                            Text("AR PASSTHROUGH ACTIVE", color = Color(0xFFEF8686), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "एआर सिमुलेशन सक्रिय" else "AR PASSTHROUGH ACTIVE",
+                                color = Color(0xFFEF8686),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
 
@@ -1055,11 +2119,11 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             listOf(
-                                Triple(ARSimulationType.GAS_VENTILATION, "1. Gas Leak", Color(0xFFFFD166)),
-                                Triple(ARSimulationType.FIRE_EVACUATION, "2. Fire & Egress", Color(0xFF06D6A0)),
-                                Triple(ARSimulationType.MACHINERY_GUARDING, "3. Conveyor LOTO", Color(0xFFF39C12)),
-                                Triple(ARSimulationType.ELECTRICAL_ISOLATION, "4. Arc Flash", Color(0xFF5DADE2)),
-                                Triple(ARSimulationType.PPE_INSPECTION, "5. PPE Check", Color(0xFF2ECC71))
+                                Triple(ARSimulationType.GAS_VENTILATION, if (currentLang == AppLanguage.HINDI) "1. गैस रिसाव" else "1. Gas Leak", Color(0xFFFFD166)),
+                                Triple(ARSimulationType.FIRE_EVACUATION, if (currentLang == AppLanguage.HINDI) "2. आग व निकासी" else "2. Fire & Egress", Color(0xFF06D6A0)),
+                                Triple(ARSimulationType.MACHINERY_GUARDING, if (currentLang == AppLanguage.HINDI) "3. मशीन लोटो" else "3. Conveyor LOTO", Color(0xFFF39C12)),
+                                Triple(ARSimulationType.ELECTRICAL_ISOLATION, if (currentLang == AppLanguage.HINDI) "4. बिजली स्पार्क" else "4. Arc Flash", Color(0xFF5DADE2)),
+                                Triple(ARSimulationType.PPE_INSPECTION, if (currentLang == AppLanguage.HINDI) "5. किट व मास्क" else "5. PPE Check", Color(0xFF2ECC71))
                             ).forEach { (type, label, activeColor) ->
                                 val isSelected = activeType == type
                                 Surface(
@@ -1109,31 +2173,31 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
                         ) {
                             when (activeType) {
                                 ARSimulationType.GAS_VENTILATION -> {
-                                    Text("CH4 Methane: 1.48% (HIGH LEL)", color = Color(0xFFFFD166), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("Fumes Plume • Tap Valve Hotspot", color = Color.White, fontSize = 10.sp)
+                                    Text(if (currentLang == AppLanguage.HINDI) "मीथेन CH4: 1.48% (खतरनाक)" else "CH4 Methane: 1.48% (HIGH LEL)", color = Color(0xFFFFD166), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (currentLang == AppLanguage.HINDI) "जहरीला धुआं • पीले वॉल्व पर टैप करें" else "Fumes Plume • Tap Valve Hotspot", color = Color.White, fontSize = 10.sp)
                                 }
                                 ARSimulationType.FIRE_EVACUATION -> {
-                                    Text("CODE RED: Active Conveyor Fire", color = Color(0xFFFF6B6B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("Follow Dynamic Green Chevrons →", color = Color(0xFF00FF88), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (currentLang == AppLanguage.HINDI) "आपातकाल: सक्रिय कन्वेयर आग" else "CODE RED: Active Conveyor Fire", color = Color(0xFFFF6B6B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (currentLang == AppLanguage.HINDI) "फर्श के हरे तीरों का अनुसरण करें →" else "Follow Dynamic Green Chevrons →", color = Color(0xFF00FF88), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                                 ARSimulationType.MACHINERY_GUARDING -> {
-                                    Text("DANGER: Exposed Rotating Pinch Point", color = Color(0xFFF39C12), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("Tap Red LOTO Box to Lock Out", color = Color.White, fontSize = 10.sp)
+                                    Text(if (currentLang == AppLanguage.HINDI) "खतरा: खुला हुआ घूमने वाला ड्रम" else "DANGER: Exposed Rotating Pinch Point", color = Color(0xFFF39C12), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (currentLang == AppLanguage.HINDI) "ताला लगाने के लिए लाल लोटो बॉक्स पर टैप करें" else "Tap Red LOTO Box to Lock Out", color = Color.White, fontSize = 10.sp)
                                 }
                                 ARSimulationType.ELECTRICAL_ISOLATION -> {
-                                    Text("WARNING: 3.3kV Arc Flash Plasma Active", color = Color(0xFF5DADE2), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("Tap Isolator Lever to Ground", color = Color.White, fontSize = 10.sp)
+                                    Text(if (currentLang == AppLanguage.HINDI) "सावधानी: 3.3kV उच्च वोल्टेज स्पार्क" else "WARNING: 3.3kV Arc Flash Plasma Active", color = Color(0xFF5DADE2), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (currentLang == AppLanguage.HINDI) "आइसोलेटर लीवर नीचे गिराएं" else "Tap Isolator Lever to Ground", color = Color.White, fontSize = 10.sp)
                                 }
                                 ARSimulationType.PPE_INSPECTION -> {
-                                    Text("DGMS MUSTER: Pre-Shift Inspection", color = Color(0xFF2ECC71), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("Tap Workbench to Verify Seal", color = Color.White, fontSize = 10.sp)
+                                    Text(if (currentLang == AppLanguage.HINDI) "डीजीएमएस जांच: शिफ्ट पूर्व निरीक्षण" else "DGMS MUSTER: Pre-Shift Inspection", color = Color(0xFF2ECC71), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(if (currentLang == AppLanguage.HINDI) "सील जांचने के लिए वर्कबेंच पर टैप करें" else "Tap Workbench to Verify Seal", color = Color.White, fontSize = 10.sp)
                                 }
                             }
                         }
 
                         Spacer(Modifier.height(4.dp))
 
-                        // Bilingual Voice Instruction Bar inside HUD
+                        // Voice Instruction Bar inside HUD
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1169,9 +2233,11 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        text = if (isDrillAudioPlaying) "Stop Voice Drill"
-                                        else if (currentLang == AppLanguage.HINDI) "🔊 ड्रिल निर्देश सुनें (हिन्दी)"
-                                        else "🔊 Listen Drill Briefing (English)",
+                                        text = if (isDrillAudioPlaying) {
+                                            if (currentLang == AppLanguage.HINDI) "आवाज बंद करें" else "Stop Voice Drill"
+                                        } else {
+                                            if (currentLang == AppLanguage.HINDI) "निर्देश आवाज में सुनें" else "Listen Drill Briefing"
+                                        },
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isDrillAudioPlaying) Color(0xFF00FF88) else Color.White
@@ -1187,7 +2253,7 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
                                 border = BorderStroke(1.dp, Color.Gray)
                             ) {
                                 Text(
-                                    text = if (currentLang == AppLanguage.HINDI) "🇮🇳 HI" else "🇬🇧 EN",
+                                    text = if (currentLang == AppLanguage.HINDI) "HI" else "EN",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary,
@@ -1214,7 +2280,7 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.Black.copy(alpha = 0.6f), contentColor = Color.White)
                 ) {
-                    Text("Recalibrate", color = Color.White)
+                    Text(if (currentLang == AppLanguage.HINDI) "पुनः सेट करें" else "Recalibrate", color = Color.White)
                 }
                 Button(
                     onClick = { navController.navigate("quiz") },
@@ -1226,120 +2292,418 @@ fun ARSimulationView(navController: NavController, viewModel: MainViewModel) {
             }
         }
 
-        // Bottom Inspection & Checklist Status Panel
+        // Bottom Inspection, Emergency Steps, DGMS Laws & Module Completion Panel
+        val sop = TrainingContentRepository.vocationalGuides[viewModel.activeModuleId]
+        val checkpointTitle = when (activeType) {
+            ARSimulationType.GAS_VENTILATION -> if (currentLang == AppLanguage.HINDI) "जांच बिंदु 1 — भूमिगत गैस एवं वेंटिलेशन" else "CHECKPOINT 1 — UNDERGROUND GAS & VENTILATION"
+            ARSimulationType.FIRE_EVACUATION -> if (currentLang == AppLanguage.HINDI) "जांच बिंदु 2 — आग एवं आपातकालीन निकासी" else "CHECKPOINT 2 — FIRE & RUNWAY EVACUATION"
+            ARSimulationType.MACHINERY_GUARDING -> if (currentLang == AppLanguage.HINDI) "जांच बिंदु 3 — कन्वेयर एवं मशीनरी लोटो" else "CHECKPOINT 3 — CONVEYOR & MACHINERY LOTO"
+            ARSimulationType.ELECTRICAL_ISOLATION -> if (currentLang == AppLanguage.HINDI) "जांच बिंदु 4 — 3.3kV विद्युत सुरक्षा" else "CHECKPOINT 4 — 3.3kV ELECTRICAL ISOLATION"
+            ARSimulationType.PPE_INSPECTION -> if (currentLang == AppLanguage.HINDI) "जांच बिंदु 5 — अनिवार्य पीपीई सुरक्षा उपकरण" else "CHECKPOINT 5 — MANDATORY PPE MUSTER INSPECTION"
+        }
+
         Column(
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(16.dp)
+                .weight(1.1f)
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .verticalScroll(rememberScrollState())
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // 1. Critical Condition Alert Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                val checkpointTitle = when (activeType) {
-                    ARSimulationType.GAS_VENTILATION -> "CHECKPOINT 1 — UNDERGROUND GAS & VENTILATION"
-                    ARSimulationType.FIRE_EVACUATION -> "CHECKPOINT 2 — FIRE & RUNWAY EVACUATION"
-                    ARSimulationType.MACHINERY_GUARDING -> "CHECKPOINT 3 — CONVEYOR & MACHINERY LOTO"
-                    ARSimulationType.ELECTRICAL_ISOLATION -> "CHECKPOINT 4 — 3.3kV ELECTRICAL ISOLATION"
-                    ARSimulationType.PPE_INSPECTION -> "CHECKPOINT 5 — MANDATORY PPE MUSTER INSPECTION"
-                }
-                Text(
-                    text = checkpointTitle,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = if (hazardIdentifiedLocally) "HAZARD FLAGGED ✓" else "SCANNING DRIFT...",
-                    color = if (hazardIdentifiedLocally) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.height(4.dp))
-            val sop = TrainingContentRepository.vocationalGuides[viewModel.activeModuleId]
-            val simulationTitle = if (currentLang == AppLanguage.HINDI && sop != null) {
-                sop.titleHi
-            } else {
-                when (activeType) {
-                    ARSimulationType.GAS_VENTILATION -> "Billowy Methane Leakage Response"
-                    ARSimulationType.FIRE_EVACUATION -> "Active Fire Hazard & Real-Time Escape Route"
-                    ARSimulationType.MACHINERY_GUARDING -> "Conveyor Pinch-Point & Lock-Out/Tag-Out (LOTO)"
-                    ARSimulationType.ELECTRICAL_ISOLATION -> "3.3kV Substation Arc Flash & Earth Knife Grounding"
-                    ARSimulationType.PPE_INSPECTION -> "Pre-Shift Self-Rescuer & Cap Lamp Validation"
-                }
-            }
-            Text(simulationTitle, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            val simulationDesc = if (currentLang == AppLanguage.HINDI && sop != null) {
-                sop.summaryHi
-            } else {
-                when (activeType) {
-                    ARSimulationType.GAS_VENTILATION -> "Observe toxic green-amber fumes billowing from the ruptured roof conduit. Tap the glowing safety valve hotspot to isolate the section."
-                    ARSimulationType.FIRE_EVACUATION -> "Roaring fire blocks the left drift. Follow the dynamic illuminated green floor arrows guiding you along the safe walkway to the refuge bay bulkhead."
-                    ARSimulationType.MACHINERY_GUARDING -> "Notice the exposed rotating conveyor pinch-point drum and emergency trip-cord. Tap the red LOTO station to apply padlock and verify zero energy."
-                    ARSimulationType.ELECTRICAL_ISOLATION -> "High-voltage 3.3kV busbars are arcing with violent blue plasma sparks. Tap the master rotary isolator to rack out breaker and engage earth grounding."
-                    ARSimulationType.PPE_INSPECTION -> "Inspect the Dräger Self-Rescuer canister, 12-hour LED cap lamp, hard hat, and multi-gas detector. Tap the inspection zone to verify DGMS seal."
-                }
-            }
-            Text(simulationDesc, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, lineHeight = 17.sp)
+                Column(Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = Color(0xFFFFDBCA),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "आपातकालीन स्थिति" else "EMERGENCY HAZARD CONDITION",
+                                color = Color(0xFF783200),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
+                        }
 
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            color = if (hazardIdentifiedLocally) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = if (hazardIdentifiedLocally) {
+                                    if (currentLang == AppLanguage.HINDI) "खतरा नियंत्रित" else "HAZARD NEUTRALIZED"
+                                } else {
+                                    if (currentLang == AppLanguage.HINDI) "सक्रिय खतरा" else "ACTIVE THREAT"
+                                },
+                                color = if (hazardIdentifiedLocally) Color(0xFF006E2F) else Color(0xFFBA1A1A),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    val condTitle = if (currentLang == AppLanguage.HINDI) (sop?.emergencyConditionHi ?: checkpointTitle) else (sop?.emergencyCondition ?: checkpointTitle)
+                    Text(condTitle, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF131B2E))
+
+                    Spacer(Modifier.height(4.dp))
+                    val condSummary = if (currentLang == AppLanguage.HINDI) (sop?.summaryHi ?: "") else (sop?.summary ?: "")
+                    Text(condSummary, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 17.sp)
+                }
+            }
+
+            // 2. What Steps Should Worker Take in this Condition Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    if (currentLang == AppLanguage.HINDI) "सजीव ड्रिल चेकलिस्ट" else "REAL-TIME DRILL CHECKLIST",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 1.sp
-                )
-                TextButton(
-                    onClick = {
-                        viewingSopInDrill = TrainingContentRepository.vocationalGuides[viewModel.activeModuleId]
-                    },
-                    contentPadding = PaddingValues(0.dp)
-                ) {
+                Column(Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier.size(32.dp).background(Color(0xFFFFDBCA), RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.DirectionsRun, contentDescription = null, tint = Color(0xFF783200), modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "इस स्थिति में क्या कदम उठाएं" else "Steps Worker Must Take",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF131B2E)
+                                )
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "मानक संचालन प्रक्रिया (SOP)" else "Immediate Vocational SOP",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Vocal Audio Button for Emergency Steps
+                        Surface(
+                            onClick = {
+                                if (isStepsAudioPlaying) {
+                                    viewModel.stopSpeech()
+                                } else {
+                                    val stepsList = if (currentLang == AppLanguage.HINDI) (sop?.emergencyStepsHi ?: emptyList()) else (sop?.emergencySteps ?: emptyList())
+                                    val narration = stepsList.joinToString(". ")
+                                    viewModel.speak(narration, currentLang, "steps_${viewModel.activeModuleId}")
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isStepsAudioPlaying) Color(0xFF1B3824) else Color(0xFFEFF6FF),
+                            border = BorderStroke(1.dp, if (isStepsAudioPlaying) Color(0xFF00FF88) else Color(0xFF93CCFF))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isStepsAudioPlaying) Icons.Default.Close else Icons.Default.VolumeUp,
+                                    contentDescription = "Listen Steps",
+                                    tint = if (isStepsAudioPlaying) Color(0xFF00FF88) else Color(0xFF006398),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = if (isStepsAudioPlaying) {
+                                        if (currentLang == AppLanguage.HINDI) "रोकें" else "Stop"
+                                    } else {
+                                        if (currentLang == AppLanguage.HINDI) "कदम सुनें" else "Listen Steps"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isStepsAudioPlaying) Color(0xFF00FF88) else Color(0xFF006398)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    val stepsList = if (currentLang == AppLanguage.HINDI) (sop?.emergencyStepsHi ?: emptyList()) else (sop?.emergencySteps ?: emptyList())
+                    stepsList.forEachIndexed { idx, step ->
+                        Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text((idx + 1).toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(step, fontSize = 12.sp, color = Color(0xFF131B2E), lineHeight = 17.sp)
+                        }
+                    }
+                }
+            }
+
+            // 3. DGMS Guidelines & Statutory Laws in Vocal Format Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier.size(32.dp).background(Color(0xFFE0F2FE), RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Gavel, contentDescription = null, tint = Color(0xFF006398), modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "डीजीएमएस नियम व वैधानिक कानून" else "DGMS Statutory Regulations",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF131B2E)
+                                )
+                                Text(
+                                    text = sop?.statutoryRef ?: "DGMS Mining Standards",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Vocal Audio Button for DGMS Laws
+                        Surface(
+                            onClick = {
+                                if (isDgmsAudioPlaying) {
+                                    viewModel.stopSpeech()
+                                } else {
+                                    val lawAudio = if (currentLang == AppLanguage.HINDI) (sop?.dgmsLawsAudioHi ?: "") else (sop?.dgmsLawsAudioEn ?: "")
+                                    viewModel.speak(lawAudio, currentLang, "dgms_${viewModel.activeModuleId}")
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isDgmsAudioPlaying) Color(0xFF1B3824) else Color(0xFFEFF6FF),
+                            border = BorderStroke(1.dp, if (isDgmsAudioPlaying) Color(0xFF00FF88) else Color(0xFF93CCFF))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isDgmsAudioPlaying) Icons.Default.Close else Icons.Default.RecordVoiceOver,
+                                    contentDescription = "Listen Law",
+                                    tint = if (isDgmsAudioPlaying) Color(0xFF00FF88) else Color(0xFF006398),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = if (isDgmsAudioPlaying) {
+                                        if (currentLang == AppLanguage.HINDI) "रोकें" else "Stop"
+                                    } else {
+                                        if (currentLang == AppLanguage.HINDI) "कानून सुनें" else "Listen Law"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isDgmsAudioPlaying) Color(0xFF00FF88) else Color(0xFF006398)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    val dgmsLawText = if (currentLang == AppLanguage.HINDI) (sop?.dgmsLawsHi ?: "") else (sop?.dgmsLaws ?: "")
+                    Text(dgmsLawText, fontSize = 12.sp, color = Color(0xFF131B2E), lineHeight = 17.sp)
+
+                    Spacer(Modifier.height(8.dp))
+                    // Key statutory thresholds chips
+                    val thresholds = if (currentLang == AppLanguage.HINDI) (sop?.keyThresholdsHi ?: emptyList()) else (sop?.keyThresholds ?: emptyList())
+                    thresholds.take(2).forEach { (metric, desc) ->
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                        ) {
+                            Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(metric, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, modifier = Modifier.width(130.dp))
+                                Text(desc, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Practical Drill Checklist & Interactive Action
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.2.dp, Color(0xFFCBD5E1)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(14.dp)) {
                     Text(
-                        if (currentLang == AppLanguage.HINDI) "📖 व्यावसायिक एसओपी गाइड खोलें" else "📖 VIEW VOCATIONAL SOP PROTOCOL",
+                        if (currentLang == AppLanguage.HINDI) "प्रैक्टिकल सिमुलेशन चेकलिस्ट" else "PRACTICAL SIMULATION CHECKLIST",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
                     )
-                }
-            }
-            Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
 
-            when (activeType) {
-                ARSimulationType.GAS_VENTILATION -> {
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "सहायक वेंटिलेशन रुकावट सत्यापित" else "Auxiliary ventilation stopping verified", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "ज्वलनशील गैस डिटेक्टर कैलिब्रेट किया गया (<0.8%)" else "Flammable gas detector calibrated (<0.8% baseline)", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "मीथेन गैस रिसाव चिन्हित और वाल्व बंद किया गया" else "Billowy gas fumes located & valve isolated", hazardIdentifiedLocally)
-                }
-                ARSimulationType.FIRE_EVACUATION -> {
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "अग्नि शमन अलार्म बीकन सक्रिय" else "Fire suppression alarm beacon triggered", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "सुरक्षित रास्ता चुना गया (दायां मार्ग साफ)" else "Safe walkway route chosen (Right side clear)", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "रिफ्यूज बे तक हरी चमकदार तीरों का अनुसरण किया गया" else "Dynamic green floor arrows followed to refuge bay", hazardIdentifiedLocally)
-                }
-                ARSimulationType.MACHINERY_GUARDING -> {
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "इमरजेंसी पुल-कॉर्ड ट्रिप स्विच का परीक्षण किया गया" else "Emergency pull-cord trip switch verified along walkway", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "घूमने वाले ड्रम का पिंच-पॉइंट खतरा पहचाना गया" else "Rotating nip-point pinch hazard identified", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "मास्टर लोटो पैडलॉक लगाया गया और शून्य ऊर्जा सत्यापित" else "Master LOTO padlock applied & zero-energy verified", hazardIdentifiedLocally)
-                }
-                ARSimulationType.ELECTRICAL_ISOLATION -> {
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "श्रेणी 4 आर्क-रेटेड फेस शील्ड और दस्ताने सत्यापित" else "Category 4 arc-rated face shield & dielectric gloves verified", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "अपस्ट्रीम 3.3kV वैक्यूम सर्किट ब्रेकर खोला गया" else "Upstream 3.3kV vacuum circuit breaker opened", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "अर्थ ग्राउंडिंग चाकू स्विच लगाया गया और डिस्चार्ज पूर्ण" else "Earth grounding knife switch engaged & busbars discharged", hazardIdentifiedLocally)
-                }
-                ARSimulationType.PPE_INSPECTION -> {
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "सेल्फ-रेस्क्यूअर सील और नमी संकेतक सत्यापित" else "Self-Rescuer hermetic seal & moisture indicator verified", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "माइनर एलईडी कैप लैंप का 12 घंटे का परीक्षण" else "Miner LED cap lamp tested for 12hr continuous beam", true)
-                    ChecklistItem(if (currentLang == AppLanguage.HINDI) "निषिद्ध सामग्री जमा की गई और हेलमेट स्ट्रैप लॉक" else "Contraband surrender clearance & helmet chin strap locked", hazardIdentifiedLocally)
+                    when (activeType) {
+                        ARSimulationType.GAS_VENTILATION -> {
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "सहायक वेंटिलेशन रुकावट सत्यापित" else "Auxiliary ventilation stopping verified", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "ज्वलनशील गैस डिटेक्टर कैलिब्रेट किया गया (<0.8%)" else "Flammable gas detector calibrated (<0.8% baseline)", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "मीथेन गैस रिसाव चिन्हित और वाल्व बंद किया गया" else "Billowy gas fumes located & valve isolated", hazardIdentifiedLocally)
+                        }
+                        ARSimulationType.FIRE_EVACUATION -> {
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "अग्नि शमन अलार्म बीकन सक्रिय" else "Fire suppression alarm beacon triggered", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "सुरक्षित रास्ता चुना गया (दायां मार्ग साफ)" else "Safe walkway route chosen (Right side clear)", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "रिफ्यूज बे तक हरी चमकदार तीरों का अनुसरण किया गया" else "Dynamic green floor arrows followed to refuge bay", hazardIdentifiedLocally)
+                        }
+                        ARSimulationType.MACHINERY_GUARDING -> {
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "इमरजेंसी पुल-कॉर्ड ट्रिप स्विच का परीक्षण किया गया" else "Emergency pull-cord trip switch verified along walkway", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "घूमने वाले ड्रम का पिंच-पॉइंट खतरा पहचाना गया" else "Rotating nip-point pinch hazard identified", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "मास्टर लोटो पैडलॉक लगाया गया और शून्य ऊर्जा सत्यापित" else "Master LOTO padlock applied & zero-energy verified", hazardIdentifiedLocally)
+                        }
+                        ARSimulationType.ELECTRICAL_ISOLATION -> {
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "श्रेणी 4 आर्क-रेटेड फेस शील्ड और दस्ताने सत्यापित" else "Category 4 arc-rated face shield & dielectric gloves verified", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "अपस्ट्रीम 3.3kV वैक्यूम सर्किट ब्रेकर खोला गया" else "Upstream 3.3kV vacuum circuit breaker opened", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "अर्थ ग्राउंडिंग चाकू स्विच लगाया गया और डिस्चार्ज पूर्ण" else "Earth grounding knife switch engaged & busbars discharged", hazardIdentifiedLocally)
+                        }
+                        ARSimulationType.PPE_INSPECTION -> {
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "सेल्फ-रेस्क्यूअर सील और नमी संकेतक सत्यापित" else "Self-Rescuer hermetic seal & moisture indicator verified", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "माइनर एलईडी कैप लैंप का 12 घंटे का परीक्षण" else "Miner LED cap lamp tested for 12hr continuous beam", true)
+                            ChecklistItem(if (currentLang == AppLanguage.HINDI) "निषिद्ध सामग्री जमा की गई और हेलमेट स्ट्रैप लॉक" else "Contraband surrender clearance & helmet chin strap locked", hazardIdentifiedLocally)
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    if (!hazardIdentifiedLocally) {
+                        Button(
+                            onClick = {
+                                hazardIdentifiedLocally = true
+                                viewModel.recordHazardIdentified(activeType.name)
+                                val msg = if (currentLang == AppLanguage.HINDI) "खतरा सफलतापूर्ण नियंत्रित कर लिया गया है।" else "Hazard isolated and neutralized."
+                                viewModel.speak(msg, currentLang, "hazard_cleared")
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Icon(Icons.Default.DoneAll, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (currentLang == AppLanguage.HINDI) "सुरक्षा क्रिया पूरी करें (अभ्यास पूर्ण)" else "Neutralize Hazard & Complete Drill", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
+
+            // 5. Post-Drill Next Actions Card (Study Manual & Quiz)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.2.dp, if (hazardIdentifiedLocally) Color(0xFF00B251) else Color(0xFFCBD5E1)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (hazardIdentifiedLocally) Icons.Default.CheckCircle else Icons.Default.Info,
+                            contentDescription = null,
+                            tint = if (hazardIdentifiedLocally) Color(0xFF006E2F) else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = if (hazardIdentifiedLocally) {
+                                    if (currentLang == AppLanguage.HINDI) "प्रैक्टिकल अभ्यास पूर्ण! अब मूल्यांकन" else "Drill Completed! Next: Assessment"
+                                } else {
+                                    if (currentLang == AppLanguage.HINDI) "अध्ययन नियमावली व प्रश्नोत्तरी" else "Study Manual & Module Quiz"
+                                },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color(0xFF131B2E)
+                            )
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "क्विज़ में बेहतर अंक पाने के लिए पहले नियमावली पढ़ें" else "Read manual before quiz for better scores",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Button 1: Read Manual for Better Marks
+                        OutlinedButton(
+                            onClick = { viewingSopInDrill = sop },
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.MenuBook, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "नियमावली पढ़ें" else "Study Manual",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        // Button 2: Take Module Quiz Now
+                        Button(
+                            onClick = { navController.navigate("quiz") },
+                            modifier = Modifier.weight(1.2f).height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Quiz, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = if (currentLang == AppLanguage.HINDI) "प्रश्नोत्तरी दें →" else "Take Quiz →",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
         }
     }
 }
@@ -1448,7 +2812,7 @@ fun QuizScreen(navController: NavController, viewModel: MainViewModel) {
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                             ) {
                                 Text(
-                                    text = if (currentLang == AppLanguage.HINDI) "🇮🇳 हिन्दी" else "🇬🇧 English",
+                                    text = if (currentLang == AppLanguage.HINDI) "हिन्दी" else "English",
                                     color = MaterialTheme.colorScheme.primary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1759,9 +3123,9 @@ fun QuizScreen(navController: NavController, viewModel: MainViewModel) {
                             Spacer(Modifier.height(8.dp))
 
                             val gradeText = when {
-                                finalScore >= 90 -> "GRADE A — HIGH DISTINCTION (DGMS COMPLIANT)"
-                                finalScore >= 70 -> "QUALIFIED — BASIC COMPETENCY ACHIEVED"
-                                else -> "NEEDS RETEST — REVIEW VOCATIONAL SOP"
+                                finalScore >= 90 -> if (currentLang == AppLanguage.HINDI) "ग्रेड A — उत्कृष्ट (डीजीएमएस अनुपालन)" else "GRADE A — HIGH DISTINCTION (DGMS COMPLIANT)"
+                                finalScore >= 70 -> if (currentLang == AppLanguage.HINDI) "उत्तीर्ण — बुनियादी योग्यता प्राप्त" else "QUALIFIED — BASIC COMPETENCY ACHIEVED"
+                                else -> if (currentLang == AppLanguage.HINDI) "पुनः प्रयास आवश्यक — एसओपी देखें" else "NEEDS RETEST — REVIEW VOCATIONAL SOP"
                             }
                             Surface(
                                 color = if (passed) Color(0xFF143020) else Color(0xFF3B1818),
@@ -1808,9 +3172,11 @@ fun QuizScreen(navController: NavController, viewModel: MainViewModel) {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = if (isResultSpeaking) "Stop Audio"
-                            else if (currentLang == AppLanguage.HINDI) "🔊 परिणाम आवाज में सुनें (हिन्दी)"
-                            else "🔊 Read Results Aloud (English)",
+                            text = if (isResultSpeaking) {
+                                if (currentLang == AppLanguage.HINDI) "ऑडियो बंद करें" else "Stop Audio"
+                            } else {
+                                if (currentLang == AppLanguage.HINDI) "परिणाम आवाज में सुनें" else "Read Results Aloud"
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isResultSpeaking) Color(0xFF00FF88) else MaterialTheme.colorScheme.onSurface
@@ -1827,7 +3193,7 @@ fun QuizScreen(navController: NavController, viewModel: MainViewModel) {
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
                     ) {
-                        Text(if (currentLang == AppLanguage.HINDI) "रूम डेटाबेस में सहेजें और प्रमाणपत्र देखें →" else "Save to Room DB & View Certificate →", fontWeight = FontWeight.Bold)
+                        Text(if (currentLang == AppLanguage.HINDI) "डेटाबेस में सहेजें और प्रमाणपत्र देखें →" else "Save to Room DB & View Certificate →", fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -1850,19 +3216,29 @@ fun QuizScreen(navController: NavController, viewModel: MainViewModel) {
     }
 }
 
-// ------------------- VOCATIONAL SOP DIALOG WITH BILINGUAL VOICE OUTPUT -------------------
+// ------------------- VOCATIONAL TRAINING MANUAL & DGMS STUDY GUIDE DIALOG -------------------
 @Composable
-fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss: () -> Unit) {
+fun VocationalSopDialog(
+    sop: VocationalSop,
+    viewModel: MainViewModel,
+    onDismiss: () -> Unit,
+    onStartQuiz: (() -> Unit)? = null
+) {
     val currentLang by viewModel.currentLanguage.collectAsStateWithLifecycle()
     val isSpeaking by viewModel.isSpeaking.collectAsStateWithLifecycle()
     val activeTag by viewModel.activeSpeechTag.collectAsStateWithLifecycle()
     val isSopAudioPlaying = isSpeaking && activeTag == "sop_${sop.moduleId}"
+    val isDgmsAudioPlaying = isSpeaking && activeTag == "sop_dgms_${sop.moduleId}"
 
     val title = if (currentLang == AppLanguage.HINDI) sop.titleHi else sop.title
     val summary = if (currentLang == AppLanguage.HINDI) sop.summaryHi else sop.summary
     val steps = if (currentLang == AppLanguage.HINDI) sop.sopStepsHi else sop.sopSteps
     val thresholds = if (currentLang == AppLanguage.HINDI) sop.keyThresholdsHi else sop.keyThresholds
     val dosAndDonts = if (currentLang == AppLanguage.HINDI) sop.dosAndDontsHi else sop.dosAndDonts
+    val quizTips = if (currentLang == AppLanguage.HINDI) sop.manualQuizTipsHi else sop.manualQuizTips
+    val emergencyCond = if (currentLang == AppLanguage.HINDI) sop.emergencyConditionHi else sop.emergencyCondition
+    val emergencyStepsList = if (currentLang == AppLanguage.HINDI) sop.emergencyStepsHi else sop.emergencySteps
+    val dgmsLaw = if (currentLang == AppLanguage.HINDI) sop.dgmsLawsHi else sop.dgmsLaws
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -1870,16 +3246,17 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.90f),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                .fillMaxWidth(0.96f)
+                .fillMaxHeight(0.92f),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(18.dp)
             ) {
                 // Header with statutory tag, Language Switcher & Close Button
                 Row(
@@ -1888,13 +3265,13 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        color = Color(0xFFFFDBCA),
                         shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                        border = BorderStroke(1.dp, Color(0xFF9D4300))
                     ) {
                         Text(
-                            if (currentLang == AppLanguage.HINDI) "व्यावसायिक एसओपी गाइड" else "VOCATIONAL SOP GUIDE",
-                            color = MaterialTheme.colorScheme.primary,
+                            if (currentLang == AppLanguage.HINDI) "व्यावसायिक प्रशिक्षण नियमावली व परीक्षा गाइड" else "TRAINING MANUAL & DGMS EXAM GUIDE",
+                            color = Color(0xFF783200),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1910,7 +3287,7 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                         ) {
                             Text(
-                                text = if (currentLang == AppLanguage.HINDI) "🇮🇳 हिन्दी" else "🇬🇧 English",
+                                text = if (currentLang == AppLanguage.HINDI) "हिन्दी" else "English",
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1924,8 +3301,8 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
+                Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF131B2E))
+                Spacer(Modifier.height(3.dp))
                 Text(sop.statutoryRef, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(10.dp))
 
@@ -1941,8 +3318,8 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                         }
                     },
                     shape = RoundedCornerShape(10.dp),
-                    color = if (isSopAudioPlaying) Color(0xFF143020) else MaterialTheme.colorScheme.surfaceVariant,
-                    border = BorderStroke(1.dp, if (isSopAudioPlaying) Color(0xFF00FF88) else MaterialTheme.colorScheme.outline),
+                    color = if (isSopAudioPlaying) Color(0xFF143020) else Color(0xFFEFF6FF),
+                    border = BorderStroke(1.dp, if (isSopAudioPlaying) Color(0xFF00FF88) else Color(0xFF93CCFF)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -1954,20 +3331,20 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                             Icon(
                                 imageVector = if (isSopAudioPlaying) Icons.Default.Close else Icons.Default.VolumeUp,
                                 contentDescription = "Voice Guide",
-                                tint = if (isSopAudioPlaying) Color(0xFF00FF88) else MaterialTheme.colorScheme.primary,
+                                tint = if (isSopAudioPlaying) Color(0xFF00FF88) else Color(0xFF006398),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(8.dp))
                             Column {
                                 Text(
                                     text = if (isSopAudioPlaying) {
-                                        if (currentLang == AppLanguage.HINDI) "आवाज में एसओपी चल रहा है... (रोकने के लिए दबाएं)" else "Speaking SOP Aloud... (Tap to Stop)"
+                                        if (currentLang == AppLanguage.HINDI) "आवाज में नियमावली चल रही है... (रोकने के लिए दबाएं)" else "Speaking Manual Aloud... (Tap to Stop)"
                                     } else {
-                                        if (currentLang == AppLanguage.HINDI) "🔊 पूरा एसओपी हिन्दी आवाज में सुनें" else "🔊 Listen Complete SOP in English"
+                                        if (currentLang == AppLanguage.HINDI) "पूरी नियमावली आवाज में सुनें" else "Listen Complete Manual Aloud"
                                     },
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isSopAudioPlaying) Color(0xFF00FF88) else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSopAudioPlaying) Color(0xFF00FF88) else Color(0xFF131B2E)
                                 )
                                 Text(
                                     text = if (currentLang == AppLanguage.HINDI) "डीजीएमएस अनुपालन वॉयस गाइड" else "DGMS Statutory Audio Guide",
@@ -1980,13 +3357,13 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                             text = if (isSopAudioPlaying) "STOP" else "PLAY",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSopAudioPlaying) Color(0xFF00FF88) else MaterialTheme.colorScheme.primary
+                            color = if (isSopAudioPlaying) Color(0xFF00FF88) else Color(0xFF006398)
                         )
                     }
                 }
 
                 Spacer(Modifier.height(10.dp))
-                Divider(color = MaterialTheme.colorScheme.outline)
+                Divider(color = Color(0xFFCBD5E1))
                 Spacer(Modifier.height(10.dp))
 
                 // Scrollable Content
@@ -1995,26 +3372,156 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                 ) {
+                    // SECTION 1: High-Yield DGMS Study Points for Quiz
+                    if (quizTips.isNotEmpty()) {
+                        Surface(
+                            color = Color(0xFFFFFBEB),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.2.dp, Color(0xFFF59E0B)),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.School, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = if (currentLang == AppLanguage.HINDI) "क्विज़ में बेहतर अंकों के लिए महत्वपूर्ण परीक्षा नोट्स" else "High-Yield DGMS Study Points for Quiz",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = Color(0xFF78350F)
+                                    )
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                quizTips.forEach { tip ->
+                                    Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
+                                        Text("• ", color = Color(0xFFB45309), fontWeight = FontWeight.Bold)
+                                        Text(tip, fontSize = 12.sp, color = Color(0xFF451A03), lineHeight = 17.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // SECTION 2: Emergency Condition & Steps Worker Must Take
+                    if (emergencyStepsList.isNotEmpty()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7ED)),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFFFED7AA)),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(
+                                    text = if (currentLang == AppLanguage.HINDI) "आपातकालीन स्थिति में क्या कदम उठाएं" else "Steps Worker Must Take in this Condition",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFF9A3412)
+                                )
+                                Spacer(Modifier.height(3.dp))
+                                Text(emergencyCond, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC2410C))
+                                Spacer(Modifier.height(6.dp))
+                                emergencyStepsList.forEachIndexed { idx, stp ->
+                                    Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
+                                        Text("${idx + 1}. ", fontWeight = FontWeight.Bold, color = Color(0xFF9A3412), fontSize = 12.sp)
+                                        Text(stp, fontSize = 12.sp, color = Color(0xFF431407), lineHeight = 16.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // SECTION 3: DGMS Statutory Laws
+                    if (dgmsLaw.isNotBlank()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp)
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Gavel, contentDescription = null, tint = Color(0xFF15803D), modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = if (currentLang == AppLanguage.HINDI) "डीजीएमएस वैधानिक कानून व नियम" else "DGMS Statutory Regulations",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF166534)
+                                        )
+                                    }
+
+                                    Surface(
+                                        onClick = {
+                                            if (isDgmsAudioPlaying) {
+                                                viewModel.stopSpeech()
+                                            } else {
+                                                val lawAudio = if (currentLang == AppLanguage.HINDI) (sop.dgmsLawsAudioHi ?: "") else (sop.dgmsLawsAudioEn ?: "")
+                                                viewModel.speak(lawAudio, currentLang, "sop_dgms_${sop.moduleId}")
+                                            }
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isDgmsAudioPlaying) Color(0xFF1B3824) else Color(0xFFDCFCE7),
+                                        border = BorderStroke(1.dp, if (isDgmsAudioPlaying) Color(0xFF00FF88) else Color(0xFF86EFAC))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isDgmsAudioPlaying) Icons.Default.Close else Icons.Default.RecordVoiceOver,
+                                                contentDescription = null,
+                                                tint = if (isDgmsAudioPlaying) Color(0xFF00FF88) else Color(0xFF166534),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(Modifier.width(3.dp))
+                                            Text(
+                                                text = if (isDgmsAudioPlaying) {
+                                                    if (currentLang == AppLanguage.HINDI) "रोकें" else "Stop"
+                                                } else {
+                                                    if (currentLang == AppLanguage.HINDI) "कानून सुनें" else "Listen Law"
+                                                },
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isDgmsAudioPlaying) Color(0xFF00FF88) else Color(0xFF166534)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text(dgmsLaw, fontSize = 12.sp, color = Color(0xFF14532D), lineHeight = 17.sp)
+                            }
+                        }
+                    }
+
+                    // SECTION 4: Executive Summary
                     Text(
                         if (currentLang == AppLanguage.HINDI) "कार्यकारी सारांश" else "Executive Summary",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF131B2E)
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(summary, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
                     Spacer(Modifier.height(16.dp))
 
+                    // SECTION 5: Statutory Thresholds
                     Text(
                         if (currentLang == AppLanguage.HINDI) "वैधानिक सीमाएं और मानक" else "Statutory Thresholds & Parameters",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF131B2E)
                     )
                     Spacer(Modifier.height(8.dp))
                     thresholds.forEach { (metric, desc) ->
                         Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
                             shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         ) {
                             Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2025,10 +3532,12 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                     }
                     Spacer(Modifier.height(16.dp))
 
+                    // SECTION 6: Step-by-Step Procedure
                     Text(
-                        if (currentLang == AppLanguage.HINDI) "चरण-दर-चरण व्यावसायिक प्रक्रिया (SOP)" else "Step-by-Step Vocational Procedure (SOP)",
+                        if (currentLang == AppLanguage.HINDI) "चरण-दर-चरण मानक संचालन प्रक्रिया" else "Step-by-Step Vocational Procedure (SOP)",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF131B2E)
                     )
                     Spacer(Modifier.height(8.dp))
                     steps.forEach { step ->
@@ -2036,10 +3545,12 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                     }
                     Spacer(Modifier.height(16.dp))
 
+                    // SECTION 7: DOs and DON'Ts
                     Text(
                         if (currentLang == AppLanguage.HINDI) "महत्वपूर्ण क्या करें और क्या न करें" else "Critical DOs and DON'Ts",
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF131B2E)
                     )
                     Spacer(Modifier.height(8.dp))
                     dosAndDonts.forEach { (doText, dontText) ->
@@ -2047,16 +3558,17 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
                                 .padding(10.dp)
                         ) {
                             Row(verticalAlignment = Alignment.Top) {
-                                Text("✓ ", color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold)
+                                Text("DO: ", color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Text(doText, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                             Spacer(Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.Top) {
-                                Text("✗ ", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                Text("DONT: ", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 Text(dontText, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -2064,12 +3576,40 @@ fun VocationalSopDialog(sop: VocationalSop, viewModel: MainViewModel, onDismiss:
                 }
 
                 Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
-                ) {
-                    Text(if (currentLang == AppLanguage.HINDI) "एसओपी समझ लिया और स्वीकार किया" else "Understood & Acknowledge SOP", fontWeight = FontWeight.Bold)
+                if (onStartQuiz != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.2.dp, Color(0xFFCBD5E1))
+                        ) {
+                            Text(if (currentLang == AppLanguage.HINDI) "नियमावली बंद करें" else "Close Manual", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+
+                        Button(
+                            onClick = onStartQuiz,
+                            modifier = Modifier.weight(1.3f).height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Quiz, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (currentLang == AppLanguage.HINDI) "अब क्विज़ दें →" else "Take Quiz Now →", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(if (currentLang == AppLanguage.HINDI) "नियमावली समझी और स्वीकार की" else "Understood & Acknowledge Manual", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -2163,9 +3703,10 @@ fun CertificateScreen(navController: NavController, viewModel: MainViewModel) {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = if (isCertSpeaking) "Stop Audio"
-                            else if (currentLang == AppLanguage.HINDI) "🔊 प्रमाणपत्र विवरण सुनें (हिन्दी)"
-                            else "🔊 Listen Certificate Aloud (English)",
+                            text = if (isCertSpeaking) {
+                                if (currentLang == AppLanguage.HINDI) "आवाज बंद करें" else "Stop Audio"
+                            } else if (currentLang == AppLanguage.HINDI) "प्रमाणपत्र विवरण सुनें"
+                            else "Listen Certificate Aloud",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isCertSpeaking) Color(0xFF00FF88) else MaterialTheme.colorScheme.onSurface
@@ -2229,41 +3770,235 @@ fun CertificateScreen(navController: NavController, viewModel: MainViewModel) {
 
 // ------------------- ADMIN SCREEN -------------------
 @Composable
-fun AdminScreen() {
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        item {
-            Text("Site Safety Analytics", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("Real-time aggregate compliance monitor", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp))
+fun AdminScreen(navController: NavController, viewModel: MainViewModel) {
+    val currentLang by viewModel.currentLanguage.collectAsStateWithLifecycle()
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.height(180.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item { AdminStatBox("1,284", "Registered Workers") }
-                item { AdminStatBox("94%", "Drill Pass Rate") }
-                item { AdminStatBox("100%", "Room DB Sync") }
-                item { AdminStatBox("0", "Physical Incidents") }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-
-        item {
+    if (viewModel.currentRole != UserRole.ADMIN) {
+        // Access Restricted Guard for Worker Accounts
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                modifier = Modifier.fillMaxWidth()
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Live AR Simulation Log", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Restricted",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(34.dp)
+                        )
+                    }
                     Spacer(Modifier.height(16.dp))
+                    Text(
+                        if (currentLang == AppLanguage.HINDI) "एडमिन पैनल प्रतिबंधित" else "Admin Panel Restricted",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (currentLang == AppLanguage.HINDI)
+                            "आप वर्तमान में खनन श्रमिक (${viewModel.loggedInUser ?: "श्रमिक"}) के रूप में लॉग इन हैं। सुरक्षा एडमिन पैनल केवल प्रमाणित डीजीएमएस सुरक्षा अधिकारियों और खान प्रबंधकों के लिए आरक्षित है।"
+                        else
+                            "You are currently signed in as Mining Worker (${viewModel.loggedInUser ?: "Worker"}). The Safety Admin Panel is strictly reserved for certified DGMS safety officers and mine managers.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Button(
+                        onClick = { navController.navigate("login") },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.Black)
+                    ) {
+                        Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color.Black)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (currentLang == AppLanguage.HINDI) "प्रशासक के रूप में लॉग इन करें" else "Log In as Administrator", fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { navController.navigate("dashboard") },
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Text(if (currentLang == AppLanguage.HINDI) "प्रशिक्षण मॉड्यूल पर वापस जाएं" else "Return to Training Modules", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+        }
+    } else {
+        // Authenticated Admin Dashboard
+        val workerRoster = remember(currentLang) {
+            if (currentLang == AppLanguage.HINDI) {
+                listOf(
+                    Triple("राजेश कुमार (JH-00482)", "कार्य क्षेत्र 4 - ड्रिफ्ट 3", "5/5 ड्रिल • 94% स्कोर • अनुपालित"),
+                    Triple("सुनीता सोरेन (JH-00519)", "कन्वेयर बेल्ट अनुभाग", "4/5 ड्रिल • 88% स्कोर • प्रगति पर"),
+                    Triple("अमित हांसदा (JH-00311)", "3.3kV सबस्टेशन", "2/5 ड्रिल • चेतावनी: लोटो अलर्ट"),
+                    Triple("मनोज महतो (JH-00644)", "हॉलेज शाफ्ट बी", "5/5 ड्रिल • 98% स्कोर • अनुपालित"),
+                    Triple("विकाश रॉय (JH-00287)", "इंटेक वायु मार्ग", "3/5 ड्रिल • समीक्षा आवश्यक")
+                )
+            } else {
+                listOf(
+                    Triple("Rajesh Kumar (JH-00482)", "Face 4 - Drift 3", "5/5 Drills • 94% Score • COMPLIANT"),
+                    Triple("Sunita Soren (JH-00519)", "Conveyor Belt Section", "4/5 Drills • 88% Score • IN PROGRESS"),
+                    Triple("Amit Hansda (JH-00311)", "3.3kV Substation", "2/5 Drills • FLAGGED: LOTO Alert"),
+                    Triple("Manoj Mahato (JH-00644)", "Haulage Shaft B", "5/5 Drills • 98% Score • COMPLIANT"),
+                    Triple("Vikash Roy (JH-00287)", "Intake Air Drift", "3/5 Drills • REVIEW REQUIRED")
+                )
+            }
+        }
 
-                    AdminLogRow("JH-00482", "Gas & Ventilation", "Fumes valve isolated in 24s", isFlag = false)
-                    AdminLogRow("JH-00482", "Fire & Evacuation", "Floor path escape verified", isFlag = false)
-                    AdminLogRow("JH-00311", "Conveyor Guard", "Lock-out tag skipped", isFlag = true)
-                    AdminLogRow("JH-00287", "Gas & Vent", "Delayed alarm call", isFlag = true)
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(if (currentLang == AppLanguage.HINDI) "खदान सुरक्षा एडमिन पैनल" else "Mine Safety Admin Panel", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "${viewModel.loggedInUser} • ${viewModel.adminId}",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Surface(
+                        onClick = {
+                            viewModel.switchRole(UserRole.WORKER)
+                            navController.navigate("dashboard")
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Engineering, contentDescription = null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.tertiary)
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (currentLang == AppLanguage.HINDI) "श्रमिक मोड में बदलें" else "Switch to Worker", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.height(180.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item { AdminStatBox("1,284", if (currentLang == AppLanguage.HINDI) "पंजीकृत कर्मी" else "Registered Workers") }
+                    item { AdminStatBox("94%", if (currentLang == AppLanguage.HINDI) "ड्रिल पास दर" else "Drill Pass Rate") }
+                    item { AdminStatBox("100%", if (currentLang == AppLanguage.HINDI) "डेटाबेस सिंक" else "Room DB Sync") }
+                    item { AdminStatBox("0", if (currentLang == AppLanguage.HINDI) "कार्यस्थल घटनाएं" else "Physical Incidents") }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            item {
+                // Workforce Compliance Roster
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(if (currentLang == AppLanguage.HINDI) "श्रमिक सुरक्षा अनुपालन रजिस्टर" else "Worker Compliance Roster", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(if (currentLang == AppLanguage.HINDI) "5 सक्रिय रिकॉर्ड" else "5 Active Records", fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+
+                        workerRoster.forEach { (name, location, status) ->
+                            val isFlag = status.contains("FLAGGED") || status.contains("चेतावनी")
+                            val isCompliant = status.contains("COMPLIANT") || status.contains("अनुपालित")
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text(location, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Surface(
+                                        color = if (isFlag) Color(0xFF4A1F1F) else if (isCompliant) Color(0xFF143020) else MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(1.dp, if (isFlag) MaterialTheme.colorScheme.error else if (isCompliant) Color(0xFF00FF88) else MaterialTheme.colorScheme.outline)
+                                    ) {
+                                        Text(
+                                            text = if (isFlag) {
+                                                if (currentLang == AppLanguage.HINDI) "चेतावनी" else "FLAGGED"
+                                            } else if (isCompliant) {
+                                                if (currentLang == AppLanguage.HINDI) "अनुपालित" else "COMPLIANT"
+                                            } else {
+                                                if (currentLang == AppLanguage.HINDI) "प्रगति पर" else "IN PROGRESS"
+                                            },
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isFlag) Color(0xFFFFA0A0) else if (isCompliant) Color(0xFF8FD6A8) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(if (currentLang == AppLanguage.HINDI) "लाइव एआर सिमुलेशन इवेंट लॉग" else "Live AR Simulation Event Log", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(16.dp))
+
+                        if (currentLang == AppLanguage.HINDI) {
+                            AdminLogRow("JH-00482", "गैस एवं वेंटिलेशन", "गैस वाल्व 24 सेकंड में सुरक्षित रूप से बंद किया", isFlag = false)
+                            AdminLogRow("JH-00482", "अग्नि एवं निकासी", "फर्श निकासी मार्ग सत्यापित", isFlag = false)
+                            AdminLogRow("JH-00311", "कन्वेयर गार्ड", "लोटो सुरक्षा टैग छोड़ दिया गया", isFlag = true)
+                            AdminLogRow("JH-00287", "गैस एवं वायु", "अलार्म सूचना में देरी", isFlag = true)
+                        } else {
+                            AdminLogRow("JH-00482", "Gas & Ventilation", "Fumes valve isolated in 24s", isFlag = false)
+                            AdminLogRow("JH-00482", "Fire & Evacuation", "Floor path escape verified", isFlag = false)
+                            AdminLogRow("JH-00311", "Conveyor Guard", "Lock-out tag skipped", isFlag = true)
+                            AdminLogRow("JH-00287", "Gas & Vent", "Delayed alarm call", isFlag = true)
+                        }
+                    }
                 }
             }
         }

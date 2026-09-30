@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
 enum class AppLanguage(val code: String, val displayName: String, val flag: String) {
-    ENGLISH("en", "English", "🇬🇧"),
-    HINDI("hi", "हिन्दी", "🇮🇳")
+    ENGLISH("en", "English", "EN"),
+    HINDI("hi", "हिन्दी", "HI")
 }
 
 class SurakshaVoiceManager(context: Context) : TextToSpeech.OnInitListener {

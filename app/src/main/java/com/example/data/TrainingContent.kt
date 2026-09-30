@@ -14,7 +14,17 @@ data class VocationalSop(
     val dosAndDonts: List<Pair<String, String>>,
     val dosAndDontsHi: List<Pair<String, String>>,
     val drillAudioEn: String,
-    val drillAudioHi: String
+    val drillAudioHi: String,
+    val emergencyCondition: String = "",
+    val emergencyConditionHi: String = "",
+    val emergencySteps: List<String> = emptyList(),
+    val emergencyStepsHi: List<String> = emptyList(),
+    val dgmsLaws: String = "",
+    val dgmsLawsHi: String = "",
+    val dgmsLawsAudioEn: String = "",
+    val dgmsLawsAudioHi: String = "",
+    val manualQuizTips: List<String> = emptyList(),
+    val manualQuizTipsHi: List<String> = emptyList()
 )
 
 data class QuizQuestion(
@@ -82,7 +92,39 @@ object TrainingContentRepository {
                     "बंद या हवा-रहित पुराने रास्तों में कभी प्रवेश न करें।"
             ),
             drillAudioEn = "Warning: High Methane gas leakage detected at 1.48%. Toxic plumes are billowing near the drift roof. Auxiliary ventilation compromised. Locate the glowing yellow valve and tap it to isolate the gas pipeline immediately.",
-            drillAudioHi = "चेतावनी: खदान में 1.48 प्रतिशत मीथेन गैस का खतरनाक रिसाव हो रहा है। छत के पास जहरीला धुआं निकल रहा है। गैस पाइपलाइन को बंद करने के लिए चमकते हुए पीले वॉल्व पर तुरंत टैप करें।"
+            drillAudioHi = "चेतावनी: खदान में 1.48 प्रतिशत मीथेन गैस का खतरनाक रिसाव हो रहा है। छत के पास जहरीला धुआं निकल रहा है। गैस पाइपलाइन को बंद करने के लिए चमकते हुए पीले वॉल्व पर तुरंत टैप करें।",
+            emergencyCondition = "Methane (CH4) Gas Leak Exceeding 1.20% Cutoff Limit",
+            emergencyConditionHi = "छत के पास 1.20% से अधिक मीथेन गैस का खतरनाक रिसाव",
+            emergencySteps = listOf(
+                "Step 1: Immediately isolate all electrical power supply to the affected district (CMR Reg 169).",
+                "Step 2: Shut down auxiliary machines immediately to prevent ignition sparks.",
+                "Step 3: Evacuate all personnel immediately along intake fresh airway. Never use compressed air hose (causes electrostatic sparks).",
+                "Step 4: Rotate mechanical isolation valve to firmly isolate the ruptured gas line.",
+                "Step 5: Erect danger barricade across gallery and notify Mine Overman and Ventilation Officer immediately."
+            ),
+            emergencyStepsHi = listOf(
+                "चरण 1: पूरे कार्यक्षेत्र की बिजली तुरंत मुख्य स्विच से काटें (सीएमआर नियम 169)।",
+                "चरण 2: स्पार्क या चिंगारी रोकने के लिए सभी मशीनें तुरंत बंद करें।",
+                "चरण 3: ताजी हवा के रास्ते से सभी कामगारों को तुरंत बाहर निकालें। कम्प्रेस्ड एयर पाइप का उपयोग बिल्कुल न करें।",
+                "चरण 4: गैस पाइपलाइन को बंद करने के लिए पीले आइसोलेशन वॉल्व को पूरी तरह बंद करें।",
+                "चरण 5: गैलरी के प्रवेश द्वार पर खतरे की बाड़ लगाएं और ओवरमैन व वेंटिलेशन अधिकारी को तुरंत सूचित करें।"
+            ),
+            dgmsLaws = "DGMS Coal Mines Regulations (CMR) 2017 - Regulation 169 & 170: Inflammable gas must never exceed 0.8% in intake airways and 1.25% in any working face. When CH4 reaches 1.20%, electrical power cut-off and immediate workforce withdrawal are legally mandatory. Auxiliary ventilation must deliver a minimum of 30 m3/minute per person at all active coal faces.",
+            dgmsLawsHi = "डीजीएमएस कोयला खान विनियम 2017 - विनियम 169 और 170: ताजी हवा के रास्ते में मीथेन 0.8% और कार्यस्थल पर 1.25% से अधिक नहीं होनी चाहिए। मीथेन 1.20% पहुंचते ही बिजली काटना और श्रमिकों को बाहर निकालना कानूनी रूप से अनिवार्य है। प्रत्येक व्यक्ति के लिए न्यूनतम 30 घन मीटर प्रति मिनट ताजी हवा का बहाव अनिवार्य है।",
+            dgmsLawsAudioEn = "Statutory DGMS Regulation Briefing under Coal Mines Regulations 2017, Regulation 169. When inflammable methane gas reaches 1.2 percent, power cutoff is legally mandatory and all workers must evacuate to fresh intake air. Never prop open ventilation doors.",
+            dgmsLawsAudioHi = "डीजीएमएस कोयला खान विनियम 2017 नियम 169 और 170 के वैधानिक नियम: खदान में मीथेन गैस 1.2 प्रतिशत पहुंचते ही बिजली काटना और मजदूरों को बाहर निकालना कानूनी रूप से अनिवार्य है। वेंटिलेशन दरवाजों को कभी खुला न छोड़ें।",
+            manualQuizTips = listOf(
+                "CH4 Statutory Cut-Off: 1.2% mandates immediate electric cutoff and workforce withdrawal.",
+                "Intake Air Maximum: Methane must never exceed 0.8% in general intake airways.",
+                "Carbon Monoxide Limit: CO above 25 PPM indicates spontaneous heating/combustion in coal pillars.",
+                "Ventilation Stopping Doors: Must remain closed to prevent short-circuiting fresh intake air."
+            ),
+            manualQuizTipsHi = listOf(
+                "मीथेन वैधानिक कट-ऑफ: 1.2% पर बिजली काटना और श्रमिकों की निकासी अनिवार्य है।",
+                "ताजी हवा में सीमा: सामान्य इनटेक रास्ते में मीथेन 0.8% से कम होनी चाहिए।",
+                "कार्बन मोनोऑक्साइड सीमा: 25 PPM से अधिक CO कोयले में स्वतः दहन का संकेत है।",
+                "वेंटिलेशन दरवाजे: ताजी हवा के सीधे बाईपास को रोकने के लिए दरवाजे हमेशा बंद रखें।"
+            )
         ),
         "2" to VocationalSop(
             moduleId = "2",
@@ -132,12 +174,44 @@ object TrainingContentRepository {
                     "निकासी के दौरान औजार या निजी सामान बचाने की कोशिश न करें।"
             ),
             drillAudioEn = "Code Red Emergency: Active coal conveyor fire detected. Don your self-rescuer mask immediately and secure the nose clamp. Follow the illuminated green floor arrows along the safe walkway to the sealed refuge bay.",
-            drillAudioHi = "आपातकालीन कोड रेड: कन्वेयर बेल्ट में आग लग गई है। तुरंत अपना सेल्फ-रेस्क्यूअर पहनें और नाक का क्लिप लगाएं। सुरक्षित रिफ्यूज बे की ओर जाने वाले फर्श के हरे तीरों का पालन करें।"
+            drillAudioHi = "आपातकालीन कोड रेड: कन्वेयर बेल्ट में आग लग गई है। तुरंत अपना सेल्फ-रेस्क्यूअर पहनें और नाक का क्लिप लगाएं। सुरक्षित रिफ्यूज बे की ओर जाने वाले फर्श के हरे तीरों का पालन करें।",
+            emergencyCondition = "Active Coal Conveyor Fire with Thick Smoke & CO Accumulation",
+            emergencyConditionHi = "कन्वेयर बेल्ट में भीषण आग, घना काला धुआं और जहरीली गैसें",
+            emergencySteps = listOf(
+                "Step 1: Don chemical oxygen Self-Rescuer (SCSR) within 15 seconds; clamp nose clip firmly.",
+                "Step 2: Never remove mouthpiece inside smoke to shout or communicate (single CO breath can be fatal).",
+                "Step 3: Drop low beneath thermal smoke layer (within 0.5m of floor) where air is cooler and least toxic.",
+                "Step 4: Keep one hand on tactile lifeline / floor guide wire, following illuminated green arrows toward refuge chamber.",
+                "Step 5: Enter refuge bay outer airlock, purge contaminants with compressed air line, and bolt inner hermetic door."
+            ),
+            emergencyStepsHi = listOf(
+                "चरण 1: 15 सेकंड के भीतर कमर से सेल्फ-रेस्क्यूअर निकालें, माउथपीस लगाएं और नाक का क्लिप कसें।",
+                "चरण 2: बात करने या चिल्लाने के लिए धुएं में माउथपीस कभी न निकालें (एक सांस भी जानलेवा हो सकती है)।",
+                "चरण 3: फर्श से 0.5 मीटर के दायरे में झुककर चलें जहां धुआं और गर्मी सबसे कम होती है।",
+                "चरण 4: फर्श पर चमकते हरे तीरों और गाइड तार पर हाथ रखकर रिफ्यूज बे की ओर बढ़ें।",
+                "चरण 5: रिफ्यूज बे के बाहरी एयरलॉक में प्रवेश करें, हवा साफ करें और अंदर का दरवाजा कसकर बंद करें।"
+            ),
+            dgmsLaws = "DGMS Coal Mines Regulations 2017 - Regulation 141 & 142: Every underground worker must carry an approved self-contained chemical oxygen self-rescuer providing minimum 60 minutes life support. Emergency refuge chambers must maintain 48 hours breathable atmosphere with independent surface borehole communications. Fire doors must be self-closing.",
+            dgmsLawsHi = "डीजीएमएस कोयला खान विनियम 2017 - विनियम 141 और 142: भूमिगत खदान में काम करने वाले प्रत्येक व्यक्ति के पास न्यूनतम 60 मिनट ऑक्सीजन देने वाला सेल्फ-रेस्क्यूअर होना अनिवार्य है। आपातकालीन रिफ्यूज बे में 48 घंटे के लिए ताजी हवा और सतह से स्वतंत्र संचार प्रणाली होनी चाहिए। आग-रोधी दरवाजे स्वतः बंद होने वाले होने चाहिए।",
+            dgmsLawsAudioEn = "Statutory DGMS Regulation Briefing under Coal Mines Regulations 2017, Regulation 141 and 142. In case of underground fire, deploy your self-rescuer within 15 seconds. Stay low under the thermal smoke layer and follow green chevrons to the sealed refuge bay. Never remove the mouthpiece in smoke.",
+            dgmsLawsAudioHi = "डीजीएमएस कोयला खान विनियम 2017 नियम 141 और 142 के वैधानिक नियम: खदान में आग लगते ही 15 सेकंड में सेल्फ-रेस्क्यूअर पहनें। धुएं के नीचे झुककर फर्श के हरे तीरों के सहारे सुरक्षित रिफ्यूज बे में पहुंचें। धुएं में माउथपीस कभी न निकालें।",
+            manualQuizTips = listOf(
+                "Self-Rescuer Deployment: Must be donned within 15 seconds to prevent toxic CO inhalation.",
+                "Smoke Egress Technique: Crawl below 0.5m floor level where air is cooler and least toxic.",
+                "Refuge Bay Airlock: Outer door must be closed and purged before opening inner bulkhead door.",
+                "Mouthpiece Rule: Never remove mouthpiece to shout; 0.5% CO causes sudden loss of consciousness."
+            ),
+            manualQuizTipsHi = listOf(
+                "सेल्फ-रेस्क्यूअर पहनना: जहरीली गैस से बचने के लिए 15 सेकंड के भीतर पहनना अनिवार्य है।",
+                "धुएं में निकासी तकनीक: फर्श से 0.5 मीटर नीचे झुककर चलें जहां तापमान और गैस न्यूनतम होती है।",
+                "रिफ्यूज बे एयरलॉक: अंदर का दरवाजा खोलने से पहले बाहरी दरवाजा बंद करके हवा साफ करें।",
+                "माउथपीस नियम: बात करने के लिए माउथपीस न निकालें; 0.5% CO तुरंत बेहोश कर देती है।"
+            )
         ),
         "3" to VocationalSop(
             moduleId = "3",
             title = "Conveyor & Machinery Guarding (LOTO)",
-            titleHi = "कन्वेयर और मशीनरी सुरक्षा (लोटो - LOTO)",
+            titleHi = "कन्वेयर और मशीनरी सुरक्षा (लोटो)",
             statutoryRef = "DGMS Technical Circular 04 of 2018 & CMR Reg 182",
             summary = "Vocational standard for isolating, locking out, tagging, and verifying zero-energy state on bulk coal belt conveyors, crushers, and pinch-point rotating drives.",
             summaryHi = "कोयला कन्वेयर बेल्ट और भारी मशीनों पर काम करते समय बिजली काटने, व्यक्तिगत ताला लगाने और शून्य यांत्रिक ऊर्जा की पुष्टि करने का नियम।",
@@ -184,7 +258,41 @@ object TrainingContentRepository {
                     "पुल-कॉर्ड को तार से बांधकर या बाईपास करके कभी काम न चलाएं।"
             ),
             drillAudioEn = "Danger: Exposed rotating conveyor pinch point drum. Moving nip hazard detected. Pull the emergency trip-cord, tap the red LOTO station to apply personal padlock, and verify zero mechanical energy before maintenance.",
-            drillAudioHi = "खतरा: कन्वेयर बेल्ट का घूमने वाला हिस्सा खुला है। आपातकालीन पुल-कॉर्ड खींचें, लाल लोटो बॉक्स पर टैप करके ताला लगाएं और शून्य ऊर्जा की पुष्टि करें।"
+            drillAudioHi = "खतरा: कन्वेयर बेल्ट का घूमने वाला हिस्सा खुला है। आपातकालीन पुल-कॉर्ड खींचें, लाल लोटो बॉक्स पर टैप करके ताला लगाएं और शून्य ऊर्जा की पुष्टि करें।",
+            emergencyCondition = "Conveyor Belt Boulder Jam & Exposed Rotating Drum Pinch Hazard",
+            emergencyConditionHi = "कन्वेयर बेल्ट में पत्थर फंसना और घूमने वाला असुरक्षित पुली ड्रम",
+            emergencySteps = listOf(
+                "Step 1: Pull the emergency pull-cord wire immediately to mechanically stop the conveyor.",
+                "Step 2: Notify the surface control room operator before initiating any clearing or maintenance.",
+                "Step 3: Rotate master electrical isolator to OFF and apply personal red padlock on multi-lock hasp (One person, one lock, one key).",
+                "Step 4: Affix standardized high-visibility danger tag with worker ID, name, date, and task details.",
+                "Step 5: Depress local start pushbutton to physically verify zero mechanical motion (zero-energy test).",
+                "Step 6: Mechanically chock gravity take-up counterweight before touching tail pulley or removing jammed coal boulder."
+            ),
+            emergencyStepsHi = listOf(
+                "चरण 1: कन्वेयर को तुरंत रोकने के लिए आपातकालीन ट्रिप-वायर पुल-कॉर्ड खींचें।",
+                "चरण 2: कोई भी काम शुरू करने से पहले कंट्रोल रूम ऑपरेटर को सूचित करें।",
+                "चरण 3: मास्टर आइसोलेटर को ऑफ करें और मल्टी-लॉक हैस्प पर अपना लाल ताला लगाएं (एक व्यक्ति, एक ताला, एक चाबी)।",
+                "चरण 4: अपना नाम, आईडी, तारीख और कार्य लिखा हुआ 'खतरा' टैग लगाएं।",
+                "चरण 5: स्टार्ट बटन दबाकर भौतिक रूप से पुष्टि करें कि मशीन बिल्कुल नहीं घूम रही (शून्य ऊर्जा परीक्षण)।",
+                "चरण 6: टेल पुली या पत्थर छूने से पहले काउंटर-वेट को लकड़ी के गुटके से पूरी तरह ब्लॉक करें।"
+            ),
+            dgmsLaws = "DGMS Technical Circular 04 of 2018 & CMR 2017 Regulation 182: Mandates dual pull-wire emergency stop switches along the full span of all conveyor walkways, spaced not more than 100 meters apart. Strict Lock-Out / Tag-Out (LOTO) protocol is mandatory before cleaning or repairing. Working on or cleaning energized conveyors is a punishable offense.",
+            dgmsLawsHi = "डीजीएमएस तकनीकी परिपत्र 04/2018 और सीएमआर 2017 विनियम 182: कन्वेयर बेल्ट के साथ हर 100 मीटर पर आपातकालीन ट्रिप पुल-कॉर्ड होना अनिवार्य है। मेंटेनेंस से पहले पूर्ण लॉक-आउट/टैग-आउट (लोटो) का पालन अनिवार्य है। चलती हुई मशीन पर काम करना या पत्थर हटाना कानूनी रूप से दंडनीय अपराध है।",
+            dgmsLawsAudioEn = "Statutory DGMS Regulation Briefing under Technical Circular 04 of 2018 and CMR Regulation 182. Every technician must apply their own personal padlock on the multi-lock hasp. Depress start button to verify zero mechanical energy. Never clear jammed coal from running belts.",
+            dgmsLawsAudioHi = "डीजीएमएस तकनीकी परिपत्र 04/2018 और सीएमआर नियम 182 के वैधानिक नियम: प्रत्येक कारीगर मल्टी-लॉक क्लैंप पर अपना व्यक्तिगत ताला स्वयं लगाएगा। स्टार्ट बटन दबाकर शून्य ऊर्जा की पुष्टि करें। चलती बेल्ट से पत्थर हटाने की कोशिश कभी न करें।",
+            manualQuizTips = listOf(
+                "Golden LOTO Rule: One Person, One Lock, One Key. No worker depends on someone else's padlock.",
+                "Zero-Energy Test: Depress local start button to confirm motor does not spin before touching machinery.",
+                "Pull-Cord Interval: Emergency trip wire must be accessible every 100 meters along conveyor.",
+                "Mesh Guard Safety: Protective fixed guards must have maximum 6mm mesh openings near rotating nip points."
+            ),
+            manualQuizTipsHi = listOf(
+                "लोटो का स्वर्णिम नियम: एक व्यक्ति, एक ताला, एक चाबी। किसी अन्य के ताले पर भरोसा न करें।",
+                "शून्य ऊर्जा परीक्षण: मशीन छूने से पहले स्टार्ट बटन दबाकर पुष्टि करें कि मोटर नहीं घूम रही।",
+                "पुल-कॉर्ड दूरी: कन्वेयर के साथ हर 100 मीटर पर आपातकालीन स्टॉप तार होना अनिवार्य है।",
+                "सुरक्षा जाली: घूमते पुर्जों के पास अधिकतम 6 मिमी की जाली होनी चाहिए ताकि उंगलियां अंदर न जा सकें।"
+            )
         ),
         "4" to VocationalSop(
             moduleId = "4",
@@ -236,7 +344,41 @@ object TrainingContentRepository {
                     "केबल की पूरी जांच किए बिना ट्रिप हुए अर्थ लीकेज ब्रेकर को दोबारा चालू न करें।"
             ),
             drillAudioEn = "Warning: 3.3 kilovolt flameproof electrical substation arcing with dangerous plasma sparks. Don Category 4 arc-rated gear, open the vacuum circuit breaker, and tap the rotary isolator to engage earth knife grounding.",
-            drillAudioHi = "सावधान: 3.3 केवी सबस्टेशन में खतरनाक इलेक्ट्रिक स्पार्क और प्लाज्मा निकल रहा है। वैक्यूम सर्किट ब्रेकर को बंद करें और अर्थ नाइफ स्विच से ग्राउंडिंग के लिए आइसोलेटर पर टैप करें।"
+            drillAudioHi = "सावधान: 3.3 केवी सबस्टेशन में खतरनाक इलेक्ट्रिक स्पार्क और प्लाज्मा निकल रहा है। वैक्यूम सर्किट ब्रेकर को बंद करें और अर्थ नाइफ स्विच से ग्राउंडिंग के लिए आइसोलेटर पर टैप करें।",
+            emergencyCondition = "High Voltage 3.3kV Flameproof Substation Arcing & Earth Fault",
+            emergencyConditionHi = "3.3 केवी सबस्टेशन में खतरनाक इलेक्ट्रिक आर्क फ्लैश और अर्थ फॉल्ट",
+            emergencySteps = listOf(
+                "Step 1: Obtain a signed Electrical Permit-To-Work (PTW) from Colliery Electrical Engineer.",
+                "Step 2: Don Category 4 arc-rated face shield, 10kV dielectric gloves, and flame-resistant overalls.",
+                "Step 3: Open upstream vacuum circuit breaker (VCB) and rack breaker into isolated test position.",
+                "Step 4: Engage mechanical earth knife switch to bond all high-voltage busbars directly to mine ground.",
+                "Step 5: Test all 3 phases (R-Y-B) with certified high-voltage audio/visual potential tester to confirm 0.0V.",
+                "Step 6: Padlock earth switch handle and hang 'MEN AT WORK ON LINE' caution placard."
+            ),
+            emergencyStepsHi = listOf(
+                "चरण 1: कोलियरी इलेक्ट्रिकल इंजीनियर से हस्ताक्षरित परमिट-टू-वर्क (PTW) प्राप्त करें।",
+                "चरण 2: श्रेणी 4 की आर्क फेस शील्ड, 10kV इंसुलेटेड दस्ताने और सुरक्षा सूट पहनें।",
+                "चरण 3: वैक्यूम सर्किट ब्रेकर (VCB) को खोलें और आइसोलेटेड स्थिति में रैक आउट करें।",
+                "चरण 4: अर्थ नाइफ स्विच को जोड़कर सभी हाई-वोल्टेज तारों को खदान अर्थिंग से जोड़ें।",
+                "चरण 5: हाई-वोल्टेज डिटेक्टर से जांचें कि तीनों फेज़ (R-Y-B) में वोल्टेज बिल्कुल शून्य है।",
+                "चरण 6: अर्थ हैंडल पर ताला लगाएं और 'लाइन पर काम चालू है' का चेतावनी बोर्ड लगाएं।"
+            ),
+            dgmsLaws = "Central Electricity Authority (Safety & Electric Supply) Regulations Reg 116 & DGMS CMR Reg 155: Arc flash safe approach boundary is minimum 1.5 meters. Underground electrical feeders must be protected by instantaneous Earth Leakage Relays with 750mA trip sensitivity. Flameproof enclosure flanged joints must be kept clean, unpainted, with max gap 0.4mm.",
+            dgmsLawsHi = "केंद्रीय विद्युत प्राधिकरण विनियम 116 और डीजीएमएस सीएमआर विनियम 155: आर्क फ्लैश का सुरक्षित दायरा कम से कम 1.5 मीटर है। खदान के सभी फीडरों में 750mA संवेदनशीलता वाला अर्थ लीकेज रिले अनिवार्य है। रिले को बाईपास करना दंडनीय अपराध है। फ्लेमप्रूफ बक्से के जोड़ों को साफ और बिना पेंट रखें।",
+            dgmsLawsAudioEn = "Statutory DGMS and Central Electricity Authority Regulation Briefing under CEA Regulation 116 and CMR Regulation 155. Earth leakage relays must trip instantaneously at 750 milliamps. Never bridge or bypass safety trip relays. Always verify zero voltage on all three phases.",
+            dgmsLawsAudioHi = "डीजीएमएस और केंद्रीय विद्युत प्राधिकरण नियम 116 व सीएमआर नियम 155 के वैधानिक नियम: अर्थ लीकेज रिले 750 मिली-एम्पीयर पर तुरंत ट्रिप होना चाहिए। रिले को तार से बाईपास करना गैर-कानूनी है। तीनों फेज़ में शून्य वोल्टेज जांचने के बाद ही काम करें।",
+            manualQuizTips = listOf(
+                "Arc Flash Boundary: Minimum 1.5 meters requiring NFPA/IS rated Category 4 PPE.",
+                "Earth Leakage Sensitivity: Mandatory 750mA instantaneous trip sensitivity on all feeders.",
+                "Never Bypass Relays: Bridging earth leakage contacts with wire is a criminal violation.",
+                "Flameproof Joint Principle: Machined gap (0.4mm) quenches internal flames so ambient methane cannot ignite."
+            ),
+            manualQuizTipsHi = listOf(
+                "आर्क फ्लैश सीमा: न्यूनतम 1.5 मीटर जहां विशेष श्रेणी 4 सुरक्षा सूट अनिवार्य है।",
+                "अर्थ लीकेज संवेदनशीलता: सभी फीडरों पर 750mA पर तुरंत ट्रिप होना अनिवार्य है।",
+                "रिले बाईपास न करें: अर्थ लीकेज रिले को तार से बाईपास करना गंभीर अपराध है।",
+                "फ्लेमप्रूफ सिद्धांत: जोड़ों का बारीक अंतर (0.4 मिमी) चिंगारी को ठंडा करके बुझा देता है।"
+            )
         ),
         "5" to VocationalSop(
             moduleId = "5",
@@ -290,7 +432,41 @@ object TrainingContentRepository {
                     "बिना रिफ्लेक्टिव पट्टी वाली वर्दी या फटे जूतों के साथ खदान में न जाएं।"
             ),
             drillAudioEn = "DGMS Pre-shift muster inspection. Verify your self-rescuer hermetic seal, 12-hour cap lamp beam, and anti-static boots. Surrender contraband mobile phones and tap the workbench to complete verification.",
-            drillAudioHi = "डीजीएमएस प्री-शिफ्ट मस्टर जांच। अपने सेल्फ-रेस्क्यूअर, 12 घंटे की कैप लैंप और एंटी-स्टैटिक जूतों की जांच करें। मोबाइल फोन जमा करें और वर्कबेंच पर टैप करके जांच पूरी करें।"
+            drillAudioHi = "डीजीएमएस प्री-शिफ्ट मस्टर जांच। अपने सेल्फ-रेस्क्यूअर, 12 घंटे की कैप लैंप और एंटी-स्टैटिक जूतों की जांच करें। मोबाइल फोन जमा करें और वर्कबेंच पर टैप करके जांच पूरी करें।",
+            emergencyCondition = "Pre-Shift Muster Inspection: Prohibited Contraband & Defective Equipment",
+            emergencyConditionHi = "शिफ्ट पूर्व मस्टर जांच: प्रतिबंधित सामग्री और खराब सुरक्षा उपकरण",
+            emergencySteps = listOf(
+                "Step 1: Inspect Cap Lamp: confirm green battery charging status and 12+ hours continuous beam at 1500 lux.",
+                "Step 2: Inspect Self-Rescuer: ensure tamper wire is intact, body free of dents, moisture indicator is blue/green (not pink).",
+                "Step 3: Check safety helmet 4-point webbing clearance and secure chin strap under chin at all times.",
+                "Step 4: Inspect anti-static steel-toe boots (100kΩ - 1000MΩ resistance) for cracked soles.",
+                "Step 5: Surrender all contraband (mobile phone, smartwatches, matchboxes, tobacco) at pit-head muster desk.",
+                "Step 6: Collect brass token and register biometric entry before boarding cage."
+            ),
+            emergencyStepsHi = listOf(
+                "चरण 1: लैंप रूम में कैप लैंप का शीशा, केबल और हरी चार्जिंग लाइट की जांच करें (12+ घंटे रोशनी)।",
+                "चरण 2: सेल्फ-रेस्क्यूअर की सील, तार और नमी सूचक (नीला/हरा होना चाहिए, गुलाबी नहीं) की जांच करें।",
+                "चरण 3: सुरक्षा हेलमेट के अंदरूनी पट्टे और ठोड़ी के स्ट्रैप की मजबूती जांचें।",
+                "चरण 4: एंटी-स्टैटिक स्टील-टो जूतों की जांच करें कि कोई दरार तो नहीं है।",
+                "चरण 5: प्रतिबंधित वस्तुएं (मोबाइल, बीड़ी, माचिस, स्मार्टवॉच) सुरक्षा डेस्क पर जमा करें।",
+                "चरण 6: पीतल का टोकन प्राप्त करें और बायोमेट्रिक हाजिरी लगाकर ही केज में चढ़ें।"
+            ),
+            dgmsLaws = "DGMS Mines Vocational Training Rules 1966 & CMR 2017 Regulation 198: Zero tolerance for non-certified PPE underground. Under Section 67 of the Mines Act 1952, carrying contraband mobile phones, matches, or smoking materials into an underground coal mine is a cognizable criminal offense punishable with imprisonment.",
+            dgmsLawsHi = "डीजीएमएस खान व्यावसायिक प्रशिक्षण नियम 1966 और सीएमआर 2017 विनियम 198: भूमिगत खदान में केवल प्रमाणित पीपीई की अनुमति है। खान अधिनियम 1952 की धारा 67 के तहत, खदान में मोबाइल फोन, माचिस, बीड़ी या लाइटर ले जाना गैर-जमानती आपराधिक अपराध है जिसमें कारावास का प्रावधान है।",
+            dgmsLawsAudioEn = "Statutory DGMS Regulation Briefing under Mines Vocational Training Rules 1966 and CMR Regulation 198. Cap lamps must provide 12 continuous hours of illumination. Carrying non-intrinsically safe smartphones, matches, or lighters past pit-head security is strictly prohibited by law.",
+            dgmsLawsAudioHi = "डीजीएमएस खान व्यावसायिक प्रशिक्षण नियम 1966 और सीएमआर नियम 198 के वैधानिक नियम: कैप लैंप कम से कम 12 घंटे लगातार तेज रोशनी देने वाली होनी चाहिए। खदान में मोबाइल, माचिस या लाइटर ले जाना कानूनन सख्त मना और दंडनीय अपराध है।",
+            manualQuizTips = listOf(
+                "Cap Lamp Statutory Duration: Minimum 12 continuous hours at certified lux output.",
+                "Self-Rescuer Moisture Indicator: Must be blue/green; pink/white indicates spoiled canister.",
+                "Antistatic Boots Purpose: Bleeds static charge safely to earth, preventing methane spark ignition.",
+                "Contraband Law: Mobile phones and ordinary batteries are illegal contraband under Section 67 of Mines Act."
+            ),
+            manualQuizTipsHi = listOf(
+                "कैप लैंप वैधानिक अवधि: कम से कम 12 घंटे लगातार प्रमाणित रोशनी।",
+                "सेल्फ-रेस्क्यूअर नमी सूचक: नीला या हरा होना चाहिए; गुलाबी या सफेद होने पर तुरंत बदलें।",
+                "एंटी-स्टैटिक जूते: शरीर के स्थैतिक आवेश को जमीन में विसर्जित करके गैस विस्फोट रोकते हैं।",
+                "प्रतिबंधित वस्तु कानून: खान अधिनियम की धारा 67 के तहत मोबाइल और माचिस ले जाना अवैध अपराध है।"
+            )
         )
     )
 
